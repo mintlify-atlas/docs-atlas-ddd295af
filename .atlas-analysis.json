@@ -1,0 +1,204 @@
+{
+  "projectType": "saas",
+  "projectName": "Airbyte",
+  "projectDescription": "The leading open-source data integration platform for building ELT/ETL pipelines from 600+ APIs, databases, and files to data warehouses, lakes, and lakehouses — available self-hosted or as a cloud service.",
+  "theme": "maple",
+  "primaryColor": "#5d59e6",
+  "lightColor": "#aca4e2",
+  "darkColor": "#0c0c34",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Get Started",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Deploy Airbyte",
+            "pages": [
+              "deploy/overview",
+              "deploy/abctl",
+              "deploy/kubernetes",
+              "deploy/docker-compose",
+              "deploy/cloud"
+            ]
+          },
+          {
+            "group": "Move Data",
+            "pages": [
+              "move-data/connections",
+              "move-data/sources-destinations",
+              "move-data/sync-modes",
+              "move-data/change-data-capture"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Connectors",
+        "groups": [
+          {
+            "group": "Connector Catalog",
+            "pages": [
+              "connectors/overview",
+              "connectors/support-levels"
+            ]
+          },
+          {
+            "group": "Popular Sources",
+            "pages": [
+              "connectors/sources/postgres",
+              "connectors/sources/mysql",
+              "connectors/sources/github",
+              "connectors/sources/salesforce",
+              "connectors/sources/hubspot",
+              "connectors/sources/stripe",
+              "connectors/sources/google-sheets",
+              "connectors/sources/s3"
+            ]
+          },
+          {
+            "group": "Popular Destinations",
+            "pages": [
+              "connectors/destinations/bigquery",
+              "connectors/destinations/snowflake",
+              "connectors/destinations/redshift",
+              "connectors/destinations/postgres",
+              "connectors/destinations/s3"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Build Connectors",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "connector-dev/overview",
+              "connector-dev/connector-builder",
+              "connector-dev/low-code-cdk"
+            ]
+          },
+          {
+            "group": "Connector Builder",
+            "pages": [
+              "connector-dev/builder/getting-started",
+              "connector-dev/builder/streams",
+              "connector-dev/builder/authentication",
+              "connector-dev/builder/pagination",
+              "connector-dev/builder/incremental-sync"
+            ]
+          },
+          {
+            "group": "Python CDK",
+            "pages": [
+              "connector-dev/python-cdk/overview",
+              "connector-dev/python-cdk/source",
+              "connector-dev/python-cdk/testing"
+            ]
+          },
+          {
+            "group": "Publish & Certify",
+            "pages": [
+              "connector-dev/submit",
+              "connector-dev/best-practices"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Platform",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": [
+              "platform/architecture",
+              "platform/tech-stack",
+              "platform/protocol"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "platform/scaling",
+              "platform/monitoring",
+              "platform/upgrading",
+              "platform/configuring"
+            ]
+          },
+          {
+            "group": "Security & Access",
+            "pages": [
+              "platform/access-management",
+              "platform/secrets",
+              "platform/enterprise"
+            ]
+          },
+          {
+            "group": "Orchestration",
+            "pages": [
+              "platform/airflow",
+              "platform/prefect",
+              "platform/dagster"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developers",
+        "groups": [
+          {
+            "group": "API & SDKs",
+            "pages": [
+              "developers/api-overview",
+              "developers/pyairbyte",
+              "developers/terraform"
+            ]
+          },
+          {
+            "group": "AI & MCP",
+            "pages": [
+              "developers/ai-overview",
+              "developers/mcp-server"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "developers/contributing",
+              "developers/license"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "600+ pre-built connectors for APIs, databases, files, and data warehouses",
+    "No-code Connector Builder for creating connectors without writing code",
+    "Low-code Python CDK for building custom connectors",
+    "Change Data Capture (CDC) support for real-time data syncing",
+    "Self-hosted (Kubernetes/Docker) and fully-managed Cloud deployment options",
+    "Full ELT pipeline management with scheduling, monitoring, and logging",
+    "Enterprise features including SSO, RBAC, and audit logging",
+    "Native orchestration integrations with Airflow, Prefect, Dagster, and Kestra",
+    "PyAirbyte SDK for programmatic pipeline management in Python",
+    "MCP server support for AI agent data access"
+  ],
+  "publicApiSurface": [
+    "Config API (REST) — manage sources, destinations, connections, jobs",
+    "Airbyte Protocol — open specification for source/destination connectors",
+    "PyAirbyte — Python SDK for reading from Airbyte sources",
+    "Terraform Provider — infrastructure-as-code for Airbyte resources",
+    "MCP Server — AI agent access to Airbyte data pipelines",
+    "Connector Builder UI — no-code connector creation interface",
+    "Low-code CDK (YAML) — declarative connector definition",
+    "Python CDK — programmatic connector authoring in Python"
+  ]
+}
