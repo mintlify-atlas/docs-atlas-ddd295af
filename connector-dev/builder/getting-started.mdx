@@ -1,0 +1,117 @@
+---
+title: "Getting started with Connector Builder"
+description: "Open the Connector Builder, create a project, configure a stream, and run your first test."
+---
+
+This guide walks through creating a working connector in the Connector Builder from scratch. The example uses the [Exchange Rates API](https://apilayer.com/marketplace/exchangerates_data-api), a free REST API that returns currency exchange rates.
+
+## Prerequisites
+
+- Access to an Airbyte workspace (Cloud or self-hosted with sufficient resources)
+- An API key for the service you want to connect to
+
+<Note>
+Do not hardcode API keys or passwords while configuring a connector in the Builder. Provide them as **Testing Values** during development. End users will enter their own credentials when they configure a source from your published connector.
+</Note>
+
+## Step 1: Open the Connector Builder
+
+<Steps>
+  <Step title="Navigate to the Builder">
+    In the Airbyte UI, click **Builder** in the left-hand navigation sidebar.
+  </Step>
+  <Step title="Create a new project">
+    Click **Start from scratch** to create a new connector builder project. If your workspace already has custom connectors, click **New custom connector** first.
+
+    Give your connector a name — for example, `Exchange Rates`.
+  </Step>
+  <Step title="Skip the AI Assistant (optional)">
+    Click **Skip and start manually** to configure the connector yourself, or use the AI Assistant to generate an initial configuration from the API documentation URL.
+  </Step>
+</Steps>
+
+## Step 2: Configure user inputs
+
+Inputs are configuration fields your connector's end users must fill in — for example, an API key or a start date.
+
+<Steps>
+  <Step title="Open the Inputs page">
+    Click **Inputs** in the left navigation.
+  </Step>
+  <Step title="Add an API key input">
+    Click **Add new user input** and fill in:
+
+    - **Input name**: `API key`
+    - **Field ID**: `api_key`
+    - **Type**: `String`
+    - Toggle on **Secret field** and **Required field**
+
+    Click **Create**.
+  </Step>
+  <Step title="Set a testing value">
+    Enter your API key in the testing value field. This key is only used while you develop and test — it is not saved with the connector configuration.
+  </Step>
+</Steps>
+
+## Step 3: Define a stream
+
+Each stream corresponds to one API endpoint or resource.
+
+<Steps>
+  <Step title="Add a stream">
+    Next to **Streams**, click the **+** icon. Name the stream `Rates`.
+  </Step>
+  <Step title="Set the endpoint URL">
+    Set **API Endpoint URL** to `https://api.apilayer.com/exchangerates_data/latest`.
+
+    Set **HTTP Method** to `GET`.
+  </Step>
+  <Step title="Configure authentication">
+    Enable the **Authenticator** toggle. Select **API Key** and set:
+
+    - **API Key value**: `{{ config['api_key'] }}`
+    - **Inject into**: `Header`
+    - **Header name**: `apikey`
+
+    Enable the **Shared Authenticator** toggle so additional streams you add later can reuse this configuration.
+  </Step>
+  <Step title="Test the stream">
+    Click **Test**. The Builder sends a request to the API and displays the response. If successful, you will see an exchange rates object like:
+
+    ```json
+    {
+      "success": true,
+      "base": "USD",
+      "date": "2025-07-16",
+      "rates": {
+        "EUR": 0.91,
+        "GBP": 0.79,
+        "CAD": 1.36
+      }
+    }
+    ```
+
+    Use the **Request** and **Response** tabs to inspect what was sent and received.
+  </Step>
+</Steps>
+
+## Step 4: Publish and use the connector
+
+<Steps>
+  <Step title="Publish to your workspace">
+    Click **Publish** → **Publish to organization**. Give the connector a name and description, then click **Publish**.
+  </Step>
+  <Step title="Create a source">
+    Navigate to **Sources** and add a new source using your published connector. Provide your API key as part of the source configuration.
+  </Step>
+  <Step title="Set up a connection">
+    Create a connection from your new source to a destination and run a sync.
+  </Step>
+</Steps>
+
+## What's next
+
+- [Defining streams](/connector-dev/builder/streams) — configure multiple streams and record selectors
+- [Authentication](/connector-dev/builder/authentication) — detailed options for each auth method
+- [Pagination](/connector-dev/builder/pagination) — handle paginated API responses
+- [Incremental sync](/connector-dev/builder/incremental-sync) — sync only new or updated records

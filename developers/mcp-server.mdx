@@ -1,0 +1,237 @@
+---
+title: "MCP Server"
+description: "Connect AI agents to your business data sources using the Model Context Protocol."
+---
+
+Airbyte's Agent Engine MCP server lets AI agents interact with your data sources through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Instead of writing custom API integrations, you configure a connector in a YAML file, register it with your AI tool, and start prompting in natural language.
+
+## What is MCP?
+
+The Model Context Protocol is an open standard that lets AI assistants discover and call external tools. When an MCP server is registered with an AI agent, the agent can invoke the server's tools automatically based on natural language prompts — without any custom code.
+
+## How Airbyte's MCP server works
+
+The MCP server sits between your AI agent and Airbyte's agent connectors. It exposes each connector's operations as MCP tools. When you prompt your agent — for example, `show me the 10 most recent Gong calls` — the agent calls the MCP server, which calls the Gong connector, which calls the API.
+
+The server handles:
+
+- Discovering available entities and actions from each connector
+- Executing operations and returning structured results
+- Truncating large text fields to reduce token usage
+- Field selection and exclusion to control response size
+- Downloading binary content like call recordings
+
+The server supports two execution modes:
+
+- **Open source mode**: Installs a connector package (from PyPI, a git URL, or a local path) and calls the third-party API directly using your credentials.
+- **Hosted mode**: Proxies API calls through Airbyte Cloud, which manages credentials and supports indexed search via the context store.
+
+## Installation
+
+The MCP server requires [uv](https://github.com/astral-sh/uv).
+
+```bash
+brew install uv
+```
+
+No additional installation is needed. The `agent-engine` CLI tool is invoked with `uv run agent-engine`.
+
+## Configuration
+
+### Open source mode (direct API access)
+
+Create a YAML configuration file for your connector. Use `${env.VAR_NAME}` syntax to reference environment variables for credentials.
+
+```yaml
+connector:
+  package: airbyte-agent-gong
+credentials:
+  access_key: ${env.GONG_ACCESS_KEY}
+  access_key_secret: ${env.GONG_ACCESS_KEY_SECRET}
+```
+
+Store your credentials in a `.env` file in the same directory:
+
+```text
+GONG_ACCESS_KEY=your-access-key
+GONG_ACCESS_KEY_SECRET=your-secret
+```
+
+<Warning>
+Never commit your `.env` file to version control. Add it to `.gitignore`. If you commit credentials by mistake, rotate them immediately.
+</Warning>
+
+To discover available open source connectors:
+
+```bash
+uv run agent-engine connectors list-oss
+uv run agent-engine connectors list-oss --pattern salesforce
+```
+
+To generate a configuration file from the connector's auth spec:
+
+```bash
+uv run agent-engine connectors configure --package airbyte-agent-gong
+```
+
+### Hosted mode (Airbyte Cloud)
+
+In hosted mode, the server uses your Agent Engine credentials and supports additional capabilities like indexed search.
+
+<Steps>
+  <Step title="Log in to Agent Engine">
+    ```bash
+    uv run agent-engine login <organization-id>
+    ```
+    This saves your credentials and sets the default organization.
+  </Step>
+  <Step title="Find your connector ID">
+    ```bash
+    uv run agent-engine connectors list-cloud
+    ```
+  </Step>
+  <Step title="Generate a configuration file">
+    ```bash
+    uv run agent-engine connectors configure --connector-id <your-connector-id>
+    ```
+    This generates a file like:
+    ```yaml
+    connector:
+      connector_id: <your-connector-id>
+    credentials:
+      airbyte_client_id: ${env.AIRBYTE_CLIENT_ID}
+      airbyte_client_secret: ${env.AIRBYTE_CLIENT_SECRET}
+    ```
+  </Step>
+</Steps>
+
+### Multiple connectors in one server
+
+You can run multiple connectors in a single MCP server using an aggregate configuration file.
+
+```yaml
+name: airbyte-crm-suite
+configs:
+  - connector-gong-package.yaml
+  - connector-salesforce-cloud.yaml
+```
+
+## Register with your AI tool
+
+Use `agent-engine mcp add-to` to register the server with your AI tool.
+
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    uv run agent-engine mcp add-to claude-code connector-gong-package.yaml
+    ```
+    Add `--scope project` to register at the project level instead of user level.
+  </Tab>
+  <Tab title="Claude Desktop">
+    ```bash
+    uv run agent-engine mcp add-to claude-desktop connector-gong-package.yaml
+    ```
+  </Tab>
+  <Tab title="Cursor">
+    ```bash
+    uv run agent-engine mcp add-to cursor connector-gong-package.yaml
+    ```
+    Add `--scope project` to register at the project level.
+  </Tab>
+  <Tab title="Codex">
+    ```bash
+    uv run agent-engine mcp add-to codex connector-gong-package.yaml
+    ```
+  </Tab>
+</Tabs>
+
+After registering, restart your AI tool to load the new server.
+
+## Available MCP tools
+
+When the server is registered, your agent can discover and call the following tools.
+
+### `<connector>__execute`
+
+The primary tool. Executes an operation on a connector entity.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `entity` | string | Entity name, e.g. `users`, `calls`, `issues` |
+| `action` | string | `list`, `get`, `search`, or `download` |
+| `params` | object | Operation parameters (varies by entity and action) |
+| `select_fields` | list of strings | Fields to include in the response |
+| `exclude_fields` | list of strings | Fields to remove from the response |
+| `skip_truncation` | boolean | Disable long-text truncation for list/search responses |
+
+### `<connector>__connector_info`
+
+Returns connector metadata: name, version, and available entities with their supported actions.
+
+### `<connector>__entity_schema`
+
+Returns the JSON schema for a specific entity.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `entity` | string | Entity name to get the schema for |
+
+### `get_instructions`
+
+Returns built-in guidance for using the MCP server, including best practices for queries and field selection.
+
+### `current_datetime`
+
+Returns the current date and time in ISO 8601 format (UTC). Agents should call this before any time-based query.
+
+## Use cases
+
+- **Query pipeline status**: Ask your AI coding tool to list connections and their last sync status.
+- **Trigger syncs**: Prompt your agent to trigger a sync for a specific connection.
+- **Investigate data**: Ask your agent to list recent records from any connected source.
+- **Cross-system queries**: Use an aggregate configuration to query multiple systems in one prompt.
+
+## Terminal chat
+
+The `agent-engine chat` command provides a lightweight terminal agent for testing your setup without an IDE.
+
+```bash
+# One-shot query
+uv run agent-engine chat connector-gong-package.yaml "show me 5 recent calls"
+
+# Interactive REPL
+uv run agent-engine chat connector-gong-package.yaml
+```
+
+<Note>
+`agent-engine chat` requires an `ANTHROPIC_API_KEY` environment variable.
+</Note>
+
+## Airbyte knowledge MCP
+
+Airbyte also provides a hosted knowledge MCP server that gives AI agents access to Airbyte's documentation, OpenAPI specs, GitHub discussions, and YouTube content.
+
+Server URL: `https://airbyte.mcp.kapa.ai`
+
+```bash
+# Claude Code / Claude Desktop
+claude mcp add --transport http airbyte-docs https://airbyte.mcp.kapa.ai
+```
+
+This is useful when your AI agent is building connectors, working with the Airbyte API, or troubleshooting sync errors.
+
+## CLI reference
+
+All commands use `uv run agent-engine <command>`. Use `--help` on any command for the full options.
+
+| Command | Description |
+|---|---|
+| `connectors list-oss` | List available open source connectors |
+| `connectors list-cloud` | List connectors configured in your Agent Engine org |
+| `connectors configure` | Generate a connector configuration file |
+| `login <org-id>` | Save Agent Engine credentials |
+| `orgs list` | List logged-in organizations |
+| `orgs default <org-id>` | Set the default organization |
+| `mcp serve <config>` | Start the MCP server |
+| `mcp add-to <target> <config>` | Register the server with an AI tool |
+| `chat <config> [prompt]` | Chat with connector data in the terminal |

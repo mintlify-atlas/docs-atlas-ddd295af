@@ -1,0 +1,92 @@
+---
+title: "Connector Catalog"
+description: "Browse 600+ pre-built connectors for sources and destinations. Learn how to find, add, and use connectors in Airbyte."
+---
+
+Airbyte's connector catalog gives you access to 600+ pre-built connectors for moving data between hundreds of sources and destinations. Whether you need to replicate a production database, pull data from a SaaS API, or load data into a cloud data warehouse, there is a connector available.
+
+## Sources and destinations
+
+**Sources** are systems Airbyte reads data from. A source connector connects to a data origin—a database, API, or file store—and extracts records that Airbyte delivers to your destination.
+
+**Destinations** are systems Airbyte writes data to. A destination connector receives records from one or more sources and loads them into a target storage system such as a data warehouse, database, or object store.
+
+You combine a source and a destination into a **connection**, which defines what data to sync, how often, and in which mode.
+
+## Finding and adding connectors
+
+<Steps>
+  <Step title="Open Sources or Destinations">
+    In the Airbyte UI, click **Sources** or **Destinations** in the left navigation bar.
+  </Step>
+  <Step title="Search for a connector">
+    Click **+ New source** (or **+ New destination**), then use the search box to filter by name.
+  </Step>
+  <Step title="Configure the connector">
+    Select the connector you want, fill in the required fields, and click **Set up source** or **Set up destination**.
+  </Step>
+  <Step title="Create a connection">
+    After both a source and destination are configured, navigate to **Connections** and click **+ New connection** to link them.
+  </Step>
+</Steps>
+
+## Popular sources
+
+<CardGroup cols={2}>
+  <Card title="Postgres" icon="database" href="/connectors/sources/postgres">
+    Replicate tables, views, and materialized views from PostgreSQL using CDC or xmin.
+  </Card>
+  <Card title="MySQL" icon="database" href="/connectors/sources/mysql">
+    Sync data from MySQL databases using binary log (binlog) CDC.
+  </Card>
+  <Card title="Salesforce" icon="cloud" href="/connectors/sources/salesforce">
+    Pull CRM objects, custom objects, and permissions data from Salesforce.
+  </Card>
+  <Card title="HubSpot" icon="chart-line" href="/connectors/sources/hubspot">
+    Sync CRM contacts, deals, companies, marketing emails, and more.
+  </Card>
+  <Card title="Stripe" icon="credit-card" href="/connectors/sources/stripe">
+    Extract payments, customers, subscriptions, invoices, and events.
+  </Card>
+  <Card title="GitHub" icon="code-branch" href="/connectors/sources/github">
+    Replicate repositories, issues, pull requests, commits, and workflow runs.
+  </Card>
+  <Card title="Google Sheets" icon="table" href="/connectors/sources/google-sheets">
+    Read sheets from a Google Sheets spreadsheet as structured streams.
+  </Card>
+  <Card title="S3" icon="bucket" href="/connectors/sources/s3">
+    Read CSV, Parquet, Avro, and JSONL files stored in Amazon S3 buckets.
+  </Card>
+</CardGroup>
+
+## Popular destinations
+
+<CardGroup cols={2}>
+  <Card title="BigQuery" icon="google" href="/connectors/destinations/bigquery">
+    Load data into Google BigQuery with batched inserts or GCS staging.
+  </Card>
+  <Card title="Snowflake" icon="snowflake" href="/connectors/destinations/snowflake">
+    Write to Snowflake using internal staging with automatic schema evolution.
+  </Card>
+  <Card title="Redshift" icon="aws" href="/connectors/destinations/redshift">
+    Load into Amazon Redshift via S3 staging and COPY commands.
+  </Card>
+  <Card title="Postgres" icon="database" href="/connectors/destinations/postgres">
+    Write data directly to PostgreSQL tables using Direct Load architecture.
+  </Card>
+  <Card title="S3" icon="bucket" href="/connectors/destinations/s3">
+    Store data in Amazon S3 as CSV, JSONL, Avro, or Parquet files.
+  </Card>
+</CardGroup>
+
+## Building custom connectors
+
+If no existing connector meets your needs, you can build your own using the **Connector Builder**—a no-code interface for creating HTTP API connectors—or by using the Airbyte CDK to write a connector in Python or Java.
+
+<Card title="Connector Builder" icon="wrench" href="https://docs.airbyte.com/connector-development/connector-builder-ui/overview">
+  Build a custom API connector without writing code using the visual Connector Builder UI.
+</Card>
+
+## Connector support levels
+
+Connectors are classified into support tiers that indicate who maintains them and what level of support you can expect. See [Connector Support Levels](/connectors/support-levels) for a full breakdown.

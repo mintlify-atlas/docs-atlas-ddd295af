@@ -1,0 +1,78 @@
+---
+title: "AI & Data Agents"
+description: "Use Airbyte to power AI agents with real-time data from any business system."
+---
+
+Airbyte provides multiple ways to bring live business data into AI agents, notebooks, and RAG pipelines. Whether you're building a single-tenant internal tool or a multi-tenant SaaS product, Airbyte handles the data layer so your agents can reason with fresh, accurate context.
+
+## The problem with AI agents
+
+Large language models are powerful, but they rely on static training data. AI agents that lack access to live business data hallucinate, miss context, and require constant human correction.
+
+Building the infrastructure to give agents real-time data access is expensive. It means owning storage layers, indexing services, pipelines, and permissions models — all of which become maintenance debt.
+
+Airbyte solves this with three components:
+
+- **Open-source, type-safe connectors** designed for AI agents — allowing agents to retrieve information, perform operations, and trigger side effects across hundreds of business systems.
+- **Credential storage and management** for multi-tenant use cases.
+- **Out-of-the-box entity caching** to power low-latency search operations.
+
+## Tools
+
+<CardGroup cols={2}>
+  <Card title="MCP server" icon="server" href="/developers/mcp-server">
+    Give any MCP-compatible AI agent (Claude, Cursor, Codex) access to live data from your business systems. No code required — configure a YAML file and start prompting.
+  </Card>
+  <Card title="PyAirbyte" icon="python" href="/developers/pyairbyte">
+    Read data from any Airbyte source directly in Python. Ideal for notebooks, data science workflows, and AI pipelines that need programmatic access to fresh data.
+  </Card>
+  <Card title="Airbyte API" icon="code" href="/developers/api-overview">
+    Programmatically manage sources, destinations, and sync jobs. Use in backend services or orchestration pipelines.
+  </Card>
+  <Card title="Terraform provider" icon="layers" href="/developers/terraform">
+    Define and version-control your entire Airbyte configuration as code, including the data pipelines powering your AI infrastructure.
+  </Card>
+</CardGroup>
+
+## MCP server for AI coding tools
+
+Airbyte's [Agent Engine MCP server](/developers/mcp-server) lets AI assistants like Claude Code and Cursor query your business data through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). You configure a connector in a YAML file, register it with your agent, and then interact with your data using natural language.
+
+Example: asking Claude Code `show me the 10 most recent Gong calls` causes the agent to call the MCP server, which calls the Gong connector, which fetches the data — all without you writing a line of code.
+
+## PyAirbyte for AI pipelines
+
+[PyAirbyte](/developers/pyairbyte) is ideal for AI and RAG pipelines that need a Python-native way to load fresh data. It connects to any Airbyte source and lets you read records directly into pandas DataFrames, DuckDB, or LLM-compatible document objects.
+
+```python
+import airbyte as ab
+
+# Load GitHub issues as LLM documents for a RAG pipeline
+source = ab.get_source(
+    "source-github",
+    config={
+        "credentials": {"personal_access_token": "<YOUR_TOKEN>"},
+        "repositories": ["airbytehq/airbyte"],
+    },
+)
+
+documents = source.get_documents(
+    stream="issues",
+    title_property="title",
+    content_properties=["body"],
+    metadata_properties=["number", "state", "created_at"],
+)
+```
+
+## Airbyte as a data source for RAG
+
+For RAG pipelines that require indexed, searchable data, Airbyte can replicate records from any source into a vector store or SQL cache. Use Airbyte Cloud's standard pipeline infrastructure to keep your vector store synchronized, then query it at inference time.
+
+See the [RAG with LangChain quickstart](https://github.com/airbytehq/quickstarts/blob/main/pyairbyte_notebooks/PyAirbyte_Document_Creation_RAG_with_Langchain_Demo.ipynb) for a full working example.
+
+## Who this is for
+
+- AI companies building multi-tenant agentic SaaS products
+- Engineering teams adding AI features to internal tools
+- Data scientists building notebooks and pipelines that need fresh business data
+- Developers who need to connect AI agents to third-party APIs without writing custom integrations

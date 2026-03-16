@@ -1,0 +1,116 @@
+---
+title: "Connections"
+description: "Understand what Airbyte connections are and how to create and manage them."
+---
+
+A **connection** links a source to a destination and defines how data moves between them. Each connection contains one or more **streams** of data and a set of configuration that controls sync behavior: when to sync, which streams to include, what sync mode to use, and where to write data in the destination.
+
+## Types of connections
+
+All connections work similarly, but the configuration process differs depending on the destination type:
+
+- **ELT connections** (databases, warehouses, data lakes): These destinations are schema-flexible. You can create tables with any column structure. This gives you more freedom over how your data is structured.
+
+- **Data activation connections** (CRMs, ad platforms, and other operational tools): These destinations have strict schemas. For example, Salesforce records have pre-defined fields with specific types. You must map source fields to destination fields explicitly.
+
+## Create an ELT connection
+
+<Steps>
+  <Step title="Open the connection wizard">
+    Click **Connections** in the left navigation, then click **New connection**.
+  </Step>
+
+  <Step title="Select a source">
+    Click the source you want to use. If you have not added a source yet, click **New source** to add one first.
+  </Step>
+
+  <Step title="Select a destination">
+    Click the destination you want to use. If you have not added a destination yet, click **New destination**. Wait while Airbyte fetches the schema of your data.
+  </Step>
+
+  <Step title="Configure streams and sync modes">
+    Under **Select sync mode**, choose whether to replicate sources (maintain an up-to-date copy) or append historical changes (track changes over time). Airbyte selects the most appropriate sync mode per stream automatically, but you can override individual streams.
+
+    In the **Schema** table:
+    - Select which streams and fields to sync.
+    - Choose the sync mode for each stream.
+    - Set primary keys for each stream (Airbyte sets these automatically when possible).
+  </Step>
+
+  <Step title="Configure the connection">
+    Click **Next** and configure the following settings:
+
+    | Setting | Description |
+    |---|---|
+    | Connection name | A meaningful name for this connection. Defaults to `Source → Destination`. |
+    | Tags | Create and apply tags to organize connections. |
+    | Schedule type | How and when to run syncs: scheduled, manual, or triggered via API. |
+    | Destination namespace | Where in the destination Airbyte writes the data. |
+    | Stream prefix | An optional prefix added to each stream name in the destination. |
+    | Advanced settings | Schema change handling and other rarely changed options. |
+  </Step>
+
+  <Step title="Set up the connection">
+    Click **Set up connection**. Airbyte takes you to the connection page where you can monitor and manage it.
+  </Step>
+</Steps>
+
+## Create a data activation connection
+
+<Steps>
+  <Step title="Select connectors">
+    Click **Connections** → **New connection**. Select your source, then your destination. Airbyte detects that the destination requires field mapping and prompts you to set up mappings.
+  </Step>
+
+  <Step title="Set up field mappings">
+    Map source fields to destination fields:
+
+    1. Select the source field you want to map.
+    2. Select the sync mode and cursor (if applicable).
+    3. Select the destination field to map to.
+    4. Select the insertion type. Available options depend on the destination connector.
+    5. Continue mapping until all required fields are mapped.
+  </Step>
+
+  <Step title="Configure the connection">
+    Set the connection name, tags, schedule type, destination namespace, stream prefix, and any advanced settings. Click **Set up connection**.
+  </Step>
+</Steps>
+
+<Note>
+  Data activation destinations may reject records that do not match the required schema. Review rejected records on the connection's **Status** page.
+</Note>
+
+## Connection settings reference
+
+### Sync schedule
+
+| Schedule type | Description |
+|---|---|
+| Scheduled | Runs at a fixed interval (hourly, daily, weekly, etc.) |
+| Manual | Only runs when you click **Sync now** or trigger via API |
+| Cron | Runs on a custom cron schedule |
+
+### Destination namespace
+
+The namespace determines the schema or database in the destination where Airbyte writes data. Options include:
+
+- **Destination default** — Uses the destination's default namespace.
+- **Source namespace** — Uses the namespace from the source.
+- **Custom** — A specific namespace you define.
+
+### Stream prefix
+
+Adding a prefix to stream names is useful when writing multiple sources to the same destination namespace. For example, a prefix of `salesforce_` results in streams named `salesforce_accounts`, `salesforce_contacts`, and so on.
+
+## Monitoring syncs
+
+The **Status** tab of a connection shows:
+
+- The sync status (running, succeeded, failed, cancelled)
+- The number of records synced
+- The time the last sync started and finished
+
+Click **Logs** to view the full sync output for debugging.
+
+Click **Sync now** at any time to trigger an immediate sync outside the configured schedule.

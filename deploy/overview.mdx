@@ -1,0 +1,52 @@
+---
+title: "Deploy Airbyte"
+description: "Choose a deployment method: self-hosted with abctl, Helm on Kubernetes, or fully managed on Airbyte Cloud."
+---
+
+Airbyte runs on Kubernetes. You can deploy it yourself on a local machine, a VM, or a cloud Kubernetes cluster, or you can use Airbyte Cloud for a fully managed experience.
+
+## Deployment options
+
+<CardGroup cols={2}>
+  <Card title="abctl" icon="terminal" href="/deploy/abctl">
+    The fastest way to run Airbyte locally or on a single VM. abctl creates a Kubernetes cluster inside Docker and installs Airbyte automatically—no Kubernetes expertise required.
+
+    **Best for:** Local development, prototyping, single-node deployments.
+  </Card>
+  <Card title="Kubernetes (Helm)" icon="dharmachakra" href="/deploy/kubernetes">
+    Deploy Airbyte to any Kubernetes cluster using the official Helm chart. Supports cloud providers such as AWS (EKS), GCP (GKE), and Azure (AKS), as well as on-premises clusters.
+
+    **Best for:** Production self-hosted deployments.
+  </Card>
+  <Card title="Docker Compose" icon="docker" href="/deploy/docker-compose">
+    Run Airbyte using Docker Compose. This method is deprecated in favor of abctl.
+
+    **Best for:** Teams already using Docker Compose who have not yet migrated to abctl.
+  </Card>
+  <Card title="Airbyte Cloud" icon="cloud" href="/deploy/cloud">
+    Fully managed Airbyte hosted by Airbyte, Inc. No infrastructure to operate. Includes automatic upgrades, data residency options, and enterprise SLAs.
+
+    **Best for:** Teams that want to move data without managing infrastructure.
+  </Card>
+</CardGroup>
+
+## Self-hosted vs Cloud
+
+| | Self-Hosted | Airbyte Cloud |
+|---|---|---|
+| Infrastructure management | You | Airbyte |
+| Upgrades | Manual | Automatic |
+| Data stays in your environment | Yes | Configurable by region |
+| Custom connectors | Yes | Yes |
+| Enterprise features | Requires license | Included |
+| Pricing model | Infrastructure costs | Consumption-based |
+
+<Note>
+  Self-Managed Enterprise customers should follow the [Self-Managed Enterprise setup guide](https://docs.airbyte.com/enterprise-setup/) instead of the standard deployment guides.
+</Note>
+
+## How Airbyte is deployed
+
+Airbyte is built to run in a Kubernetes cluster. You can deploy it to a cloud provider such as AWS, GCP, or Azure, to a single-node VM such as an EC2 instance, or locally on your computer. Airbyte recommends deploying with Helm and the official Helm chart.
+
+If you are not running Kubernetes and do not want to manage it yourself, use `abctl`. It creates and manages a Kubernetes cluster inside Docker automatically.

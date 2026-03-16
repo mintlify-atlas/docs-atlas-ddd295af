@@ -1,0 +1,132 @@
+---
+title: "GitHub Source"
+description: "Replicate repositories, issues, pull requests, commits, workflow runs, and more from GitHub using the REST and GraphQL APIs."
+---
+
+The GitHub source connector syncs data from GitHub repositories and organizations using the GitHub REST and GraphQL APIs. It supports incremental syncs for most streams and handles rate limiting automatically.
+
+## Prerequisites
+
+- A GitHub account.
+- One or more GitHub repositories you want to sync (read access required for private repositories).
+- **Airbyte Cloud**: OAuth or a Personal Access Token.
+- **Airbyte Open Source**: A Personal Access Token.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create a GitHub Personal Access Token (Open Source only)">
+    1. Log into [GitHub](https://github.com) and navigate to [Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens).
+    2. Click **Generate new token**.
+    3. Grant at minimum the `repo` scope. Additional scopes are required for specific streams—see [Permissions and scopes](#permissions-and-scopes).
+    4. Copy the token.
+
+    <Tip>
+    To load-balance your API quota across multiple tokens, enter multiple tokens separated by commas in the **Personal Access Token** field.
+    </Tip>
+  </Step>
+
+  <Step title="Set up the GitHub connector in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **GitHub**, and create a new source.
+
+    <Tabs>
+      <Tab title="Airbyte Cloud">
+        Click **Authenticate your GitHub account** to authorize via OAuth, or select **Personal Access Token** and enter your token.
+      </Tab>
+      <Tab title="Airbyte Open Source">
+        Select **Personal Access Token** and enter your token(s).
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Configure repositories">
+    In **GitHub Repositories**, enter repositories in one of these formats:
+
+    - Single repository: `airbytehq/airbyte`
+    - Multiple repositories: `airbytehq/airbyte airbytehq/another-repo`
+    - All repositories in an organization: `airbytehq/*`
+
+    <Warning>
+    Repositories with incorrect names or names in the wrong format will be skipped with a `WARN` message in the logs.
+    </Warning>
+  </Step>
+
+  <Step title="Configure optional fields">
+    - **Start date** (optional): Only data generated on or after this date is replicated for supported streams.
+    - **Branch** (optional): Specific branches to pull commits from (e.g., `airbytehq/airbyte/master`).
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="credentials" type="object" required>
+  Authentication method. Options: OAuth (Airbyte Cloud) or Personal Access Token.
+</ParamField>
+
+<ParamField path="repositories" type="array" required>
+  List of GitHub repositories or organizations to sync. Supports glob patterns (e.g., `airbytehq/*`).
+</ParamField>
+
+<ParamField path="start_date" type="string">
+  ISO 8601 date string. Only data generated on or after this date is replicated for supported incremental streams.
+</ParamField>
+
+<ParamField path="branch" type="array">
+  List of branches to pull commits from. Defaults to the repository's default branch.
+</ParamField>
+
+<ParamField path="max_waiting_time" type="integer">
+  Maximum time in seconds to wait for a response from GitHub. Used to handle `ContributorActivity` 202 responses.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## Available streams
+
+### Full refresh streams
+
+`assignees`, `branches`, `collaborators`, `contributor_activity`, `issue_labels`, `issue_timeline_events`, `organizations`, `pull_request_commits`, `tags`, `team_members`, `team_memberships`, `teams`, `users`
+
+### Incremental streams
+
+`comments`, `commit_comment_reactions`, `commit_comments`, `commits`, `deployments`, `events`, `issue_comment_reactions`, `issue_events`, `issue_milestones`, `issue_reactions`, `issues`, `project_cards`, `project_columns`, `projects`, `projects_v2`, `pull_request_comment_reactions`, `pull_request_stats`, `pull_requests`, `releases`, `repositories`, `review_comments`, `reviews`, `stargazers`, `workflow_jobs`, `workflow_runs`, `workflows`
+
+<Note>
+Only `comments`, `commits`, `issues`, and `review_comments` are purely incremental (they read and emit only new records). Other incremental streams read all records but emit only new ones—this may affect your API rate limit consumption.
+</Note>
+
+## Permissions and scopes
+
+For OAuth, the connector requests these scopes: `repo`, `read:org`, `read:repo_hook`, `read:user`, `read:discussion`, `read:project`, `workflow`.
+
+For a Personal Access Token, you must manually select the needed scopes:
+
+- `repo` — required for all streams.
+- Collaborators stream requires the token owner to be a repository collaborator.
+- Teams stream requires the token owner to be an authenticated organization member.
+- Projects stream requires the Projects feature to be enabled on the repository.
+
+## Rate limiting
+
+The GitHub API enforces rate limits:
+- **REST API**: 5,000 requests/hour (15,000 for GitHub Enterprise Cloud organization-owned apps).
+- **GraphQL API**: Point-based limits (streams using GraphQL: `pull_request_stats`, `reviews`, `pull_request_comment_reactions`, `issue_reactions`, `releases`, `projects_v2`).
+
+REST and GraphQL rate limits are tracked separately.
+
+<Tip>
+If rate limits are reached before all streams complete, use Incremental sync mode, increase the sync interval, or split streams across multiple connections.
+</Tip>
+
+## Known limitations
+
+- The `releases` stream fetches up to 100 assets per release via GraphQL. Releases with more than 100 assets will have their assets truncated.
+- Very distant `start_date` values on large streams may cause persistent GitHub API errors. Use a more recent start date if this occurs.
+- The start date does not apply to: `assignees`, `branches`, `collaborators`, `issue_labels`, `organizations`, `pull_request_commits`, `repositories`, `tags`, `teams`, `users`.

@@ -1,0 +1,159 @@
+---
+title: "Authentication"
+description: "Configure API key, Bearer, Basic HTTP, OAuth 2.0, JWT, or Session token authentication in Connector Builder."
+---
+
+Authentication lets the connector prove its identity to the API and gain access to protected data. In the Builder, authentication is configured once in the **Global Configuration** page and applies to all streams.
+
+<Note>
+Credentials are never saved with the connector definition. During development they are entered as **Testing Values**. In production, end users provide their own credentials when configuring a source.
+</Note>
+
+If your API does not require authentication, set the method to **No auth**.
+
+If your API uses multiple or custom authentication methods, use the [Low-Code CDK](/connector-dev/low-code-cdk) or [Python CDK](/connector-dev/python-cdk/overview).
+
+## Supported authentication methods
+
+<Tabs>
+  <Tab title="API Key">
+    The API key method injects a key into a configurable location in the request.
+
+    **When to use it**: The API documentation mentions an API key, token, or secret that is sent as a header, query parameter, or request body field.
+
+    | Location | Inject into value |
+    | --- | --- |
+    | HTTP header | `header` |
+    | Query string | `request_parameter` |
+    | Form-encoded body | `body_data` |
+    | JSON body | `body_json` |
+
+    **Example — CoinAPI.io** uses the `X-CoinAPI-Key` header:
+
+    ```bash
+    curl -X GET \
+      -H "X-CoinAPI-Key: <api-key>" \
+      https://rest.coinapi.io/v1/<stream path>
+    ```
+
+    Set **Inject into** to `header` and **Header name** to `X-CoinAPI-Key`.
+  </Tab>
+  <Tab title="Bearer Token">
+    Sets the `Authorization: Bearer <token>` header on every request. No additional configuration is needed — enter the token in **Testing Values** during development.
+
+    **When to use it**: The API documentation mentions "bearer token" or "token authentication".
+
+    **Example — Sendgrid**:
+
+    ```bash
+    curl -X GET \
+      -H "Authorization: Bearer <bearer token>" \
+      https://api.sendgrid.com/<stream path>
+    ```
+  </Tab>
+  <Tab title="Basic HTTP">
+    Encodes a username and password in the `Authorization: Basic <base64>` header. No additional configuration is needed beyond entering credentials.
+
+    **When to use it**: The API documentation mentions "Basic Auth", "Basic HTTP", or `Authorization: Basic`.
+
+    **Example — Greenhouse API**:
+
+    ```bash
+    curl -X GET \
+      -H "Authorization: Basic dXNlcjpwYXNzd2Q=" \
+      https://harvest.greenhouse.io/v1/<stream path>
+    ```
+
+    The Base64 value is computed automatically from the username and password you provide.
+
+    Some APIs only require a username with no password (e.g. Chargebee). Leave the password field empty in that case.
+  </Tab>
+  <Tab title="OAuth 2.0">
+    OAuth 2.0 allows users to authorize access without sharing their credentials directly with Airbyte.
+
+    **Recommended: Declarative OAuth Connector Specification**
+
+    Enable **Declarative OAuth Connector Specification** to support the full authorization flow. Users are redirected to the API's consent screen, and access tokens are managed automatically.
+
+    Required configuration:
+    - **Consent URL** — the URL where users grant permissions, e.g.:
+      ```
+      https://api.example.com/oauth/authorize?client_id={{client_id_value}}&redirect_uri={{redirect_uri_value}}&scope={{scope_value}}&state={{state_value}}
+      ```
+    - **Access Token URL** — the token exchange endpoint, e.g.:
+      ```
+      https://api.example.com/oauth/token
+      ```
+
+    **Legacy approach (without Declarative OAuth)**
+
+    Use this when the API does not support the full authorization code flow or you already have OAuth credentials. Users must manually obtain client ID, client secret, and refresh token.
+
+    Required fields:
+    - **Token refresh endpoint** — the URL to call for a new access token
+    - **Grant type** — `refresh_token` or `client_credentials`
+
+    **Example — Square API** token refresh:
+
+    ```bash
+    curl -X POST \
+      -H "Content-Type: application/json" \
+      -d '{"client_id": "<id>", "client_secret": "<secret>", "refresh_token": "<token>", "grant_type": "refresh_token"}' \
+      https://connect.squareup.com/oauth2/token
+    ```
+
+    Set **Token refresh endpoint** to `https://connect.squareup.com/oauth2/token` and **Token expiry property name** to `expires_at`.
+
+    **Single-use refresh tokens**
+
+    Some APIs (e.g. Smartsheets) invalidate the refresh token after each use and return a new one. Enable **Refresh Token Updater** to handle this case automatically.
+  </Tab>
+  <Tab title="JWT">
+    Generates a signed JSON Web Token and sends it in the `Authorization: Bearer <jwt>` header.
+
+    **When to use it**: The API documentation mentions "JWT", "JSON Web Token", "Bearer JWT", or "signed tokens".
+
+    Required configuration:
+    - **Secret Key** — the key used to sign the token
+    - **Algorithm** — signing algorithm (e.g. `HS256`, `RS256`)
+    - **Token Duration** — how long in seconds the token is valid
+
+    Optional:
+    - **Header Prefix** — defaults to `Bearer`
+    - **Additional JWT Headers** — extra properties in the JWT header
+    - **Additional JWT Payload** — extra claims in the JWT payload
+    - **Base64 Encode Secret Key** — enable if the API requires a base64-encoded key
+  </Tab>
+  <Tab title="Session Token">
+    Fetches a temporary token from a session endpoint, then uses that token for all data requests. The token is automatically refreshed when it expires.
+
+    **When to use it**: The API documentation mentions "Session Token", "Session ID", "Auth Token", or "Temporary Token".
+
+    Required configuration:
+
+    **Session Token Retrieval**
+    - **URL** — the session token endpoint
+    - **HTTP Method** — `GET` or `POST`
+    - **Authentication Method** — how to authenticate the retrieval request itself
+    - **Request Body** — if credentials must be sent in the body (e.g. `username`/`password` as JSON)
+
+    **Token handling**
+    - **Session Token Path** — path into the response to extract the token value
+    - **Expiration Duration** — ISO 8601 duration, e.g. `P14D` for 14 days
+
+    **Data Request Authentication**
+    - **API Key** — inject the session token into a header or query parameter
+    - **Bearer** — send the session token as a standard Bearer token
+
+    **Example — Metabase API**
+
+    The `/api/session` endpoint accepts `username` and `password` in the request body and returns `{"id": "<session-token>"}`.
+
+    - URL: `https://<app_name>.metabaseapp.com/api/session`
+    - Method: `POST`
+    - Request Body (JSON key-value pairs): `username` → `{{ config['username'] }}`, `password` → `{{ config['password'] }}`
+    - Session Token Path: `id`
+    - Expiration Duration: `P14D`
+    - Data Request Authentication: API Key, inject into `Header`, header name `X-Metabase-Session`
+  </Tab>
+</Tabs>

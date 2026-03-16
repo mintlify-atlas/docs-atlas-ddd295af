@@ -1,0 +1,101 @@
+---
+title: "Submit a connector"
+description: "Contribute a new connector to the Airbyte Marketplace by submitting a pull request or using the Builder's built-in contribution flow."
+---
+
+Once your connector is working and tested, you can contribute it to the Airbyte Marketplace so other users can discover and use it.
+
+## Connectors built in Connector Builder
+
+The fastest path to contribution is directly from the Builder:
+
+<Steps>
+  <Step title="Finish and test your connector">
+    Make sure all streams return records and the connection check passes.
+  </Step>
+  <Step title="Click Publish → Contribute to Marketplace">
+    In the Connector Builder, click the **Publish** chevron and select **Contribute to Marketplace**.
+  </Step>
+  <Step title="Fill out the form">
+    Provide a connector description and your GitHub Personal Access Token (PAT). The token must be a classic token with `workflow` scope.
+
+    To create a classic PAT:
+    1. In GitHub, go to **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**.
+    2. Click **Generate new token (classic)**.
+    3. Add the `workflow` scope.
+    4. Click **Generate Token** and copy the value immediately.
+  </Step>
+  <Step title="Click Contribute">
+    The Builder opens a pull request on your behalf in the Airbyte GitHub repository. The Marketplace team reviews it — reviews typically take under a week.
+  </Step>
+</Steps>
+
+## Python CDK and custom connectors
+
+For connectors that cannot be built in the Builder, follow the GitHub pull request process.
+
+### Before opening a PR
+
+1. **Check for an existing discussion** in the [New Connector Request](https://github.com/airbytehq/airbyte/discussions/categories/new-connector-request) category on GitHub. If one exists, comment there. If not, open a new discussion to avoid duplicate work.
+2. **Build and test locally** — make sure `airbyte-ci connectors test` passes for your connector.
+
+### Required files
+
+Your connector PR must include:
+
+| File | Description |
+| --- | --- |
+| `metadata.yaml` | Connector metadata: name, Docker image, definition ID, certification level, allowed hosts |
+| `spec.yaml` or `spec.json` | Configuration schema shown to end users |
+| `icon.svg` | Connector logo (SVG format) |
+| `README.md` | Setup and usage documentation |
+| `acceptance-test-config.yml` | Acceptance test configuration |
+| `schemas/` | JSON Schema files for each stream |
+
+### `metadata.yaml` example
+
+```yaml
+data:
+  allowedHosts:
+    hosts:
+      - "api.example.com"
+  connectorSubtype: api
+  connectorType: source
+  definitionId: <uuid>
+  dockerImageTag: 0.1.0
+  dockerRepository: airbyte/source-example
+  githubIssueLabel: source-example
+  icon: example.svg
+  license: ELv2
+  name: Example
+  registryOverrides:
+    cloud:
+      enabled: true
+    oss:
+      enabled: true
+  supportLevel: community
+  documentationUrl: https://docs.airbyte.com/integrations/sources/example
+metadataSpecVersion: "1.0"
+```
+
+### Certification levels
+
+| Level | Description |
+| --- | --- |
+| `certified` | Maintained by Airbyte; passes high-strictness acceptance tests; full production support |
+| `community` | Maintained by the contributor; passes standard acceptance tests |
+| `marketplace` | Listed in the Marketplace catalog but with limited validation |
+
+### PR review criteria
+
+The Airbyte team reviews PRs for:
+
+- Authentication, pagination, and incremental sync implemented where applicable
+- A reasonable set of streams covering the most important API resources
+- Unit tests for any custom Python components
+- All CI checks passing, including `airbyte-ci connectors test`
+- A sandbox account available for ongoing CI testing (the team will ask if needed)
+
+<Tip>
+Follow the [pull request title convention](https://docs.airbyte.com/community/contributing-to-airbyte/resources/pull-requests-handbook#pull-request-title-convention) when opening your PR.
+</Tip>

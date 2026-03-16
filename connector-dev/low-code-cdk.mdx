@@ -1,0 +1,157 @@
+---
+title: "Low-Code CDK"
+description: "Define source connectors as YAML manifests using Airbyte's declarative low-code framework."
+---
+
+The Low-Code CDK lets you define a source connector as a YAML manifest file rather than writing Python code. It uses the same underlying engine as the [Connector Builder](/connector-dev/connector-builder) — every form in the Builder maps directly to a component in this YAML schema.
+
+<Info>
+Almost all YAML capabilities are supported in the Connector Builder UI. If you prefer a visual interface, [use the Builder](/connector-dev/connector-builder) instead of editing YAML directly.
+</Info>
+
+## Why low-code?
+
+API source connectors are formulaic. Nearly every one needs to solve the same small set of problems:
+
+- Making requests to multiple endpoints under a base URL
+- Authenticating with OAuth, API keys, or Basic auth
+- Paginating through results
+- Handling rate limiting with backoff
+- Supporting incremental sync with a cursor field
+
+The declarative framework provides configurable off-the-shelf components for each of these problems, eliminating the need to write the same boilerplate repeatedly.
+
+## YAML manifest structure
+
+A connector manifest is a single YAML file with four top-level sections:
+
+```yaml
+version: "0.1.0"
+
+definitions:
+  # Reusable components referenced by streams below
+
+streams:
+  # List of stream definitions
+
+check:
+  # Which stream(s) to read when verifying the connection
+
+spec:
+  # The connector's configuration schema (shown to end users)
+```
+
+| Section | Purpose |
+| --- | --- |
+| `version` | Declares the framework version |
+| `definitions` | Reusable component definitions (authenticators, paginators, etc.) |
+| `streams` | One entry per API resource to sync |
+| `check` | Stream(s) used to validate that the connection is working |
+| `spec` | JSON Schema describing the configuration inputs end users must provide |
+
+## Stream components
+
+Each stream in the `streams` list is a `DeclarativeStream` with a `retriever` that orchestrates how data is fetched:
+
+```yaml
+streams:
+  - type: DeclarativeStream
+    name: articles
+    primary_key: id
+    retriever:
+      type: SimpleRetriever
+      requester:
+        type: HttpRequester
+        url_base: "https://content.guardianapis.com"
+        path: "/search"
+        http_method: GET
+        authenticator:
+          type: ApiKeyAuthenticator
+          header: "api-key"
+          api_token: "{{ config['api_key'] }}"
+        request_parameters:
+          format: json
+      record_selector:
+        type: RecordSelector
+        extractor:
+          type: DpathExtractor
+          field_path:
+            - response
+            - results
+      paginator:
+        type: DefaultPaginator
+        pagination_strategy:
+          type: PageIncrement
+          page_size: 50
+          start_from_page: 1
+        page_token_option:
+          type: RequestOption
+          inject_into: request_parameter
+          field_name: page
+    incremental_sync:
+      type: DatetimeBasedCursor
+      cursor_field: webPublicationDate
+      datetime_format: "%Y-%m-%dT%H:%M:%SZ"
+      start_datetime:
+        type: MinMaxDatetime
+        datetime: "{{ config['start_date'] }}"
+        datetime_format: "%Y-%m-%dT%H:%M:%SZ"
+      end_datetime:
+        type: MinMaxDatetime
+        datetime: "{{ now_utc().strftime('%Y-%m-%dT%H:%M:%SZ') }}"
+        datetime_format: "%Y-%m-%dT%H:%M:%SZ"
+      start_time_option:
+        type: RequestOption
+        field_name: from-date
+        inject_into: request_parameter
+      end_time_option:
+        type: RequestOption
+        field_name: to-date
+        inject_into: request_parameter
+```
+
+## Key components
+
+### Requester
+
+Describes how to build each HTTP request: base URL, path, method, headers, query parameters, and authentication.
+
+### Authenticators
+
+Built-in authenticators include:
+
+- `ApiKeyAuthenticator` — injects a key into a header or query parameter
+- `BearerAuthenticator` — sets `Authorization: Bearer <token>`
+- `BasicHttpAuthenticator` — base64-encodes username and password
+- `OAuthAuthenticator` — handles OAuth 2.0 refresh token flow
+- `JwtAuthenticator` — signs requests with a JWT
+- `SessionTokenAuthenticator` — fetches a session token then reuses it
+
+### Paginator
+
+Built-in pagination strategies:
+
+- `OffsetIncrement` — increments an `offset` parameter
+- `PageIncrement` — increments a `page` parameter
+- `CursorPagination` — extracts the next cursor from the response or headers
+
+### Record selector
+
+Extracts records from the response body using a field path. For example, `field_path: [response, results]` extracts the array at `response.results`.
+
+### Incremental sync
+
+`DatetimeBasedCursor` partitions the sync into time windows and injects start/end times as request parameters.
+
+## Sample connectors
+
+For production examples, see:
+
+- [Greenhouse](https://github.com/airbytehq/airbyte/blob/master/airbyte-integrations/connectors/source-greenhouse/source_greenhouse/manifest.yaml)
+- [Sendgrid](https://github.com/airbytehq/airbyte/blob/master/airbyte-integrations/connectors/source-sendgrid/source_sendgrid/manifest.yaml)
+- [Sentry](https://github.com/airbytehq/airbyte/blob/master/airbyte-integrations/connectors/source-sentry/source_sentry/manifest.yaml)
+
+## Full schema reference
+
+The complete component schema is published at:
+`https://raw.githubusercontent.com/airbytehq/airbyte-python-cdk/main/airbyte_cdk/sources/declarative/declarative_component_schema.yaml`

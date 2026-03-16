@@ -1,0 +1,112 @@
+---
+title: "Incremental sync"
+description: "Configure cursor-based incremental sync to fetch only new or updated records since the last sync."
+---
+
+An incremental sync fetches only the data that has changed since the previous sync, rather than re-reading all records every time. This reduces load on the API, speeds up syncs, and enables automatic change history tracking in supported destinations.
+
+## Requirements
+
+To use incremental sync, the API endpoint must:
+
+1. Include a top-level date/time field in each record that indicates when it was last updated (the **cursor field**).
+2. Accept a filter parameter to request only records updated after a given date.
+
+<Info>
+If the cursor field is nested inside the record, use an **Add Field** transformation to copy it to the top level, then a **Remove Field** transformation to clean up the original.
+</Info>
+
+## Configuration
+
+In the stream's **Incremental Sync** section, configure:
+
+| Field | Description |
+| --- | --- |
+| **Cursor field** | The record property that indicates when the record was last updated (e.g. `updated_at`, `webPublicationDate`) |
+| **Cursor datetime formats** | One or more datetime formats for parsing the cursor value, in order of preference |
+| **Start datetime** | The earliest date to sync from. On subsequent syncs, Airbyte uses the last cursor value seen as the new start date |
+| **End datetime** | The end of the sync window. Usually set to `now` to sync all changes up to the current time |
+| **Inject start/end time** | How to send datetime values to the API (query parameter, header, or body) |
+
+## Cursor datetime formats
+
+Common formats:
+
+| Format | Example value |
+| --- | --- |
+| `%Y-%m-%dT%H:%M:%S.%f%z` | `2023-04-15T07:30:58.000Z` |
+| `%Y-%m-%dT%H:%M:%SZ` | `2023-04-15T07:30:58Z` |
+| `%Y-%m-%d` | `2023-04-15` |
+| `%s` | `1681543858` (Unix seconds) |
+| `%ms` | `1681543858000` (Unix milliseconds) |
+
+You can list multiple formats. The Builder tests each in order and uses the first one that successfully parses the cursor value.
+
+## Example: Guardian API
+
+The [Guardian API](https://open-platform.theguardian.com/documentation/search) `/search` endpoint accepts `from-date` and `to-date` query parameters. Records include a `webPublicationDate` field:
+
+```json
+{
+  "id": "world/2022/oct/21/russia-ukraine-war-latest",
+  "type": "article",
+  "webPublicationDate": "2022-10-21T14:06:14Z",
+  "webTitle": "Russia-Ukraine war latest"
+}
+```
+
+Configuration:
+
+- **Cursor field**: `webPublicationDate`
+- **Cursor datetime formats**: `%Y-%m-%dT%H:%M:%SZ`
+- **Start datetime**: `{{ config['start_time'] }}` (interpolated from user input)
+- **End datetime**: `{{ now_utc().strftime('%Y-%m-%dT%H:%M:%SZ') }}`
+- **Inject start time**: `request_parameter`, field name `from-date`
+- **Inject end time**: `request_parameter`, field name `to-date`
+
+With start date `2023-04-09T00:00:00Z`, the first sync sends:
+
+```bash
+curl 'https://content.guardianapis.com/search?from-date=2023-04-09T00:00:00Z&to-date=<now>'
+```
+
+After the sync, Airbyte saves the cursor value of the last record (e.g. `2023-04-15T07:30:58Z`) as the connection's state. The next sync starts from that saved value:
+
+```bash
+curl 'https://content.guardianapis.com/search?from-date=2023-04-15T07:30:58Z&to-date=<now>'
+```
+
+## Advanced settings
+
+### Outgoing datetime format
+
+Controls how datetime values are formatted when sent to the API. Defaults to the first cursor format. Useful when the API accepts a different format than what the cursor field contains.
+
+### Step and cursor granularity
+
+If you need to break a large time range into smaller intervals (e.g. to respect API constraints or reduce memory usage), configure:
+
+- **Step** — the size of each time window (ISO 8601 duration, e.g. `P10D` for 10 days)
+- **Cursor granularity** — the smallest time unit the API supports (e.g. `PT1S` for 1 second)
+
+With Step `P10D` and Cursor granularity `PT1S`, a 30-day range produces three requests:
+
+```bash
+curl '...?from-date=2023-01-01T00:00:00Z&to-date=2023-01-09T23:59:59Z'
+curl '...?from-date=2023-01-10T00:00:00Z&to-date=2023-01-19T23:59:59Z'
+curl '...?from-date=2023-01-20T00:00:00Z&to-date=2023-01-29T23:59:59Z'
+```
+
+### Lookback window
+
+Subtracts a duration from the last saved cursor before each sync. Useful when an API allows updating records without changing their cursor field — for example, if news articles can be edited after publication but `webPublicationDate` is not updated.
+
+Setting a 2-day lookback on the Guardian example means the next sync starts 2 days before the last recorded article date, catching any edits made in that window.
+
+## State management
+
+Airbyte stores the cursor value of the last successfully synced record as the connection's **state**. On the next sync, the state is loaded and used as the new start datetime. If a sync fails mid-way, the next attempt resumes from the last checkpointed state, not from the beginning.
+
+To learn more about how different sync modes use this state, see:
+- [Incremental Sync – Append](https://docs.airbyte.com/platform/using-airbyte/core-concepts/sync-modes/incremental-append/)
+- [Incremental Sync – Append + Deduped](https://docs.airbyte.com/platform/using-airbyte/core-concepts/sync-modes/incremental-append-deduped)

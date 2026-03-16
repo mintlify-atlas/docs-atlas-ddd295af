@@ -1,0 +1,136 @@
+---
+title: "Monitoring and Observability"
+description: "Configure OpenTelemetry metrics, Prometheus, Datadog, and log collection for your Airbyte deployment."
+---
+
+Airbyte offers extensive logging and metrics capabilities to help you monitor the health and performance of your data pipelines.
+
+## Connection logs
+
+All Airbyte instances include detailed logs for each connector and sync job. These logs give you per-sync reports with record counts, byte volumes, errors, and timing information. You can browse them directly in the Airbyte UI under each connection's job history.
+
+## OpenTelemetry metrics
+
+<Info>
+  OpenTelemetry metrics are available to **Self-Managed Enterprise** customers. Airbyte sends metrics only — not traces or logs.
+</Info>
+
+Airbyte Self-Managed Enterprise generates metrics about syncs and data volumes. You can configure Airbyte to send telemetry data to any OpenTelemetry collector endpoint and consume them in your monitoring tool of choice.
+
+Metrics provide health insight across three areas:
+
+- **Resource provisioning** — Monitor API requests and sync attempts to ensure adequate resources.
+- **Sync performance** — Track sync duration and data volume moved.
+- **System health** — Monitor sync status and completion rates.
+
+### Configure OpenTelemetry
+
+<Steps>
+  <Step title="Deploy an OpenTelemetry Collector">
+    Deploy an OpenTelemetry Collector if you don't already have one. See the [OpenTelemetry documentation](https://opentelemetry.io/docs/collector/getting-started/#kubernetes) for Kubernetes setup.
+
+    Your collector must accept OpenTelemetry Protocol (OTLP) over HTTP. A minimal receiver configuration:
+
+    ```yaml
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+    ```
+
+    If you use Datadog, follow the [Datadog Collector and Exporter guide](https://docs.datadoghq.com/opentelemetry/collector_exporter/).
+  </Step>
+
+  <Step title="Update values.yaml">
+    Enable OpenTelemetry in your Airbyte `values.yaml`:
+
+    ```yaml title="values.yaml"
+    global:
+      edition: enterprise
+      metrics:
+        enabled: true
+        otlp:
+          enabled: true
+          # End with the metrics ingestion path, e.g. /v1/metrics
+          collectorEndpoint: "http://your-collector:4318/v1/metrics"
+    ```
+  </Step>
+
+  <Step title="Redeploy Airbyte">
+    Apply the updated configuration:
+
+    ```bash
+    helm upgrade airbyte airbyte/airbyte \
+      --namespace airbyte \
+      --values ./values.yaml
+    ```
+
+    Airbyte begins sending metrics to your collector endpoint.
+  </Step>
+</Steps>
+
+## Available metrics
+
+The following metrics are published every minute:
+
+| Metric | Tags | Description |
+|--------|------|-------------|
+| `airbyte.syncs` | `connection_id`, `workspace_id`, `job_id`, `status`, `attempt_count`, `source_connector_id`, `destination_connector_id`, `version`, `service` | Sync attempt count with status. |
+| `airbyte.gb_moved` | `connection_id`, `workspace_id`, `job_id`, `source_connector_id`, `destination_connector_id`, `version`, `service` | Gigabytes of data moved per sync. |
+| `airbyte.sync_duration` | `connection_id`, `workspace_id`, `job_id`, `source_connector_id`, `destination_connector_id`, `version`, `service` | Duration of each sync. |
+| `airbyte.api_requests` | `uri`, `status`, `exception`, `method`, `version`, `service` | API request count and status codes. |
+
+**Example tag values:**
+
+```
+connection_id:  653a067e-cd0b-4cab-96b5-5e5cb03f159b
+workspace_id:   bed3b473-1518-4461-a37f-730ea3d3a848
+status:         success | failed
+version:        1.5.0
+service:        airbyte-worker
+```
+
+## Datadog integration
+
+Airbyte uses Datadog to monitor Airbyte Cloud performance internally. For self-managed deployments, you can send metrics to Datadog through OpenTelemetry using the configuration above.
+
+To route metrics to Datadog via the `otel` metric client, set the following in your configuration:
+
+```
+PUBLISH_METRICS=true
+METRIC_CLIENT=otel
+OTEL_COLLECTOR_ENDPOINT=<ip:port of your OTEL collector>
+```
+
+## Log collection
+
+You can configure Airbyte to store logs in external object storage. Set the following environment variables (see [Configuring Airbyte](/platform/configuring)):
+
+<Tabs>
+  <Tab title="S3">
+    ```
+    S3_BUCKET=<your-bucket-name>
+    S3_REGION=<region>
+    S3_AWS_KEY=<access-key>
+    S3_AWS_SECRET=<secret-key>
+    ```
+  </Tab>
+  <Tab title="GCS">
+    ```
+    GCS_LOG_BUCKET=<your-bucket-name>
+    ```
+  </Tab>
+  <Tab title="MinIO">
+    ```
+    S3_MINIO_ENDPOINT=<minio-url>
+    S3_PATH_STYLE_ACCESS=true
+    ```
+  </Tab>
+</Tabs>
+
+For log level configuration:
+
+```
+LOG_LEVEL=INFO  # DEBUG | INFO | WARN | ERROR
+```

@@ -1,0 +1,222 @@
+---
+title: "Postgres Source"
+description: "Replicate tables, views, and materialized views from PostgreSQL using CDC (logical replication) or the xmin system column. Supports all Airbyte sync modes."
+---
+
+Airbyte's certified Postgres source connector replicates data from PostgreSQL databases. It supports multiple replication methods, all available sync modes, and reliable large-table replication through checkpointing.
+
+## Features
+
+- Replicate tables, views, and materialized views.
+- Multiple replication methods: [CDC (logical replication)](#cdc), [xmin](#xmin), and standard cursor-based.
+- All available sync modes.
+- Reliable replication at any table size with checkpointing and chunked database reads.
+- SSL and SSH tunnel support.
+- Azure Entra service principal authentication.
+
+<Note>
+The minimum required Airbyte platform version for this connector is **v0.58.0**.
+</Note>
+
+## Prerequisites
+
+- A running PostgreSQL instance (version 9.4 or later).
+- A database user with `SELECT` privileges on the schemas and tables you want to replicate.
+- (For CDC) The user also needs `REPLICATION` privileges and logical replication must be enabled on the database.
+- (For Airbyte Cloud) Your database must be accessible from Airbyte IPs.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create a dedicated read-only Postgres user">
+    Create a dedicated user for Airbyte replication:
+
+    ```sql
+    CREATE USER <user_name> PASSWORD 'your_password_here';
+    ```
+
+    Grant read access to each schema you want to replicate:
+
+    ```sql
+    GRANT USAGE ON SCHEMA <schema_name> TO <user_name>;
+    GRANT SELECT ON ALL TABLES IN SCHEMA <schema_name> TO <user_name>;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA <schema_name> GRANT SELECT ON TABLES TO <user_name>;
+    ```
+  </Step>
+
+  <Step title="Create a new Postgres source in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **Postgres**, and create a new source.
+
+    1. Enter the hostname, port number, and database name.
+    2. Optionally list the schemas to sync (default: `public`).
+    3. Enter the username and password created in the previous step.
+    4. Select an SSL mode (`require` or `verify-ca` are most common).
+    5. Select **Standard (xmin)** as the replication method for most use cases.
+  </Step>
+
+  <Step title="(Airbyte Cloud only) Allow inbound traffic from Airbyte IPs">
+    If you are on Airbyte Cloud, add Airbyte's IP addresses to your database's allowlist. See the [Airbyte Security docs](https://docs.airbyte.com/platform/operating-airbyte/ip-allowlist) for the current list of IPs.
+  </Step>
+</Steps>
+
+## Replication methods
+
+### CDC
+
+Airbyte uses [logical replication](https://www.postgresql.org/docs/current/logical-replication.html) of the Postgres write-ahead log (WAL) to capture inserts, updates, and deletes incrementally.
+
+Use CDC when:
+- You need a record of row deletions.
+- Your database is large (500 GB or more).
+- Your tables have primary keys but no reliable cursor field (e.g., no `updated_at` column).
+
+#### Additional setup steps for CDC
+
+<Steps>
+  <Step title="Grant REPLICATION permission">
+    ```sql
+    ALTER USER <user_name> REPLICATION;
+    ```
+  </Step>
+
+  <Step title="Enable logical replication">
+    <Tabs>
+      <Tab title="Bare metal / VMs / Docker">
+        In `postgresql.conf`, set:
+
+        | Parameter | Value |
+        | --- | --- |
+        | `wal_level` | `logical` |
+        | `max_wal_senders` | `min: 1` |
+        | `max_replication_slots` | `1` (or more if other services also read the WAL) |
+      </Tab>
+      <Tab title="AWS RDS / Aurora">
+        Set `rds.logical_replication` to `1` in the cluster parameter group, then restart.
+
+        <Warning>
+        AWS Aurora implements a CDC caching layer that is incompatible with Airbyte CDC. Disable it by setting `rds.logical_wal_cache` to `0` in the Aurora parameter group.
+        </Warning>
+      </Tab>
+      <Tab title="Azure Database for Postgres">
+        Set the replication mode to `logical` in the Azure Portal, or run:
+
+        ```bash
+        az postgres server configuration set \
+          --resource-group <group> --server-name <server> \
+          --name azure.replication_support --value logical
+        az postgres server restart --resource-group <group> --name <server>
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Create a replication slot">
+    Airbyte requires a dedicated replication slot using the `pgoutput` plugin:
+
+    ```sql
+    SELECT pg_create_logical_replication_slot('airbyte_slot', 'pgoutput');
+    ```
+  </Step>
+
+  <Step title="Create a publication">
+    For each table you want to replicate with CDC, set its replication identity and add it to a publication:
+
+    ```sql
+    ALTER TABLE tbl1 REPLICA IDENTITY DEFAULT;
+    CREATE PUBLICATION airbyte_publication FOR TABLE <tbl1, tbl2, tbl3>;
+    ```
+  </Step>
+
+  <Step title="Enable CDC in the Airbyte UI">
+    In the Postgres source configuration, change the update method to **Read Changes using Change Data Capture (CDC)** and enter the replication slot name and publication name.
+  </Step>
+</Steps>
+
+### Xmin
+
+Xmin is a cursorless replication method that uses the built-in `xmin` system column to track inserts and updates. No cursor field configuration is required.
+
+Use xmin when:
+- There is no well-defined cursor column in your tables.
+- You want to replace a full-refresh sync.
+- Your database does not have high write volume that would cause transaction ID wraparound.
+
+<Note>
+Non-materialized views are not supported by xmin replication.
+</Note>
+
+### Standard (cursor-based)
+
+Standard mode uses a user-defined cursor field (e.g., `updated_at`) for incremental syncs. This method is not recommended for large databases or tables without a reliable cursor.
+
+## Configuration reference
+
+<ParamField path="host" type="string" required>
+  The hostname or IP address of the PostgreSQL server.
+</ParamField>
+
+<ParamField path="port" type="integer" required>
+  The port number. Defaults to `5432`.
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  The name of the database to connect to.
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The username for authentication.
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  The password for authentication.
+</ParamField>
+
+<ParamField path="schemas" type="array">
+  List of schemas to sync. Case-sensitive. Defaults to `["public"]`.
+</ParamField>
+
+<ParamField path="ssl_mode" type="string">
+  SSL connection mode. Options: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. Airbyte Cloud always requires encryption.
+</ParamField>
+
+<ParamField path="replication_method" type="object" required>
+  The replication method to use. Options: `CDC`, `Xmin`, `Standard`. CDC requires additional configuration (replication slot and publication).
+</ParamField>
+
+<ParamField path="tunnel_method" type="object">
+  SSH tunnel configuration. Options: `No Tunnel`, `SSH Key Authentication`, `Password Authentication`.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## Available streams
+
+All tables, views, and materialized views in the configured schemas are available as streams. Non-materialized views are not supported in xmin mode.
+
+## SSL modes
+
+| Mode | Description |
+| --- | --- |
+| `disable` | No encryption. Not permitted on Airbyte Cloud. |
+| `allow` | Encrypt only when required by the server. |
+| `prefer` | Encrypt when possible; fall back to unencrypted. |
+| `require` | Always encrypt. Connection fails if server does not support SSL. |
+| `verify-ca` | Always encrypt and verify the server's SSL certificate. |
+| `verify-full` | Always encrypt and verify the server's identity. |
+
+## Known limitations
+
+- `Infinity` and `NaN` float values are converted to `null`.
+- Era indicators in CDC mode are not supported for `date` columns.
+- Non-materialized views are not supported by xmin replication.
+- Databases over 500 GB benefit from CDC over xmin to avoid heavy transaction ID consumption.
+- For CDC against a read replica, Postgres 16.1+ and connector version 3.6.21+ are required.
+
+For a full list of limitations and troubleshooting steps, see the [Postgres troubleshooting guide](https://docs.airbyte.com/integrations/sources/postgres/postgres-troubleshooting).

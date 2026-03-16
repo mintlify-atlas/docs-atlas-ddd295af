@@ -1,0 +1,197 @@
+---
+title: "Airbyte Enterprise"
+description: "Enterprise features including SSO/SAML, RBAC, audit logging, custom image registries, and multi-region deployments."
+---
+
+Airbyte Self-Managed Enterprise is the self-hosted version of Airbyte designed for production deployments in regulated or security-conscious environments. It runs on Kubernetes and includes all Community features plus the enterprise additions described on this page.
+
+## Getting started
+
+Self-Managed Enterprise requires a license key. [Contact Airbyte sales](https://airbyte.com/company/talk-to-sales) to obtain one.
+
+Once you have a license key, set it in your Kubernetes secret:
+
+```bash
+kubectl create secret generic airbyte-config-secrets \
+  --from-literal=license-key='xxxxx.yyyyy.zzzzz' \
+  --from-literal=instance-admin-email='admin@company.example' \
+  --from-literal=instance-admin-password='<password>' \
+  --namespace airbyte
+```
+
+Then set the edition in your `values.yaml`:
+
+```yaml title="values.yaml"
+global:
+  edition: enterprise
+  airbyteUrl: https://airbyte.company.example
+```
+
+## Deployment
+
+Self-Managed Enterprise must be deployed on Kubernetes. Airbyte recommends:
+
+| Component | Recommendation |
+|-----------|---------------|
+| Kubernetes cluster | Amazon EKS or GKE, 2+ availability zones, minimum 6 nodes |
+| Compute | Memory-optimized instances (M7i / M7g), minimum 2 cores / 8 GB RAM |
+| Database | Amazon RDS PostgreSQL or GCP Cloud SQL with at least one read replica |
+| Object storage | Amazon S3 or GCS for logs, state, and workload output |
+| Secrets manager | AWS Secrets Manager, GCP Secret Manager, or Azure Key Vault |
+
+<Note>
+  Airbyte does not support EKS on Fargate or most service meshes such as Istio.
+</Note>
+
+### Install with Helm
+
+<Tabs>
+  <Tab title="Helm chart V1">
+    ```bash
+    helm repo add airbyte https://airbytehq.github.io/helm-charts
+    helm repo update
+
+    helm install airbyte-enterprise airbyte/airbyte \
+      --namespace airbyte \
+      --values ./values.yaml
+    ```
+  </Tab>
+  <Tab title="Helm chart V2 (recommended)">
+    ```bash
+    helm repo add airbyte-v2 https://airbytehq.github.io/helm-charts-v2
+    helm repo update
+
+    helm install airbyte airbyte-v2/airbyte \
+      --namespace airbyte-v2 \
+      --values ./values.yaml \
+      --version 2.x.x
+    ```
+  </Tab>
+</Tabs>
+
+## SSO / OIDC
+
+Self-Managed Enterprise supports Single Sign-On via OpenID Connect (OIDC). Supported identity providers include Okta, Microsoft Entra ID (Active Directory), and any generic OIDC-compatible provider.
+
+Add SSO configuration to your `values.yaml`:
+
+```yaml title="values.yaml"
+global:
+  auth:
+    instanceAdmin:
+      firstName: ""
+      lastName: ""
+      emailSecretKey: "instance-admin-email"
+      passwordSecretKey: "instance-admin-password"
+    identityProvider:
+      secretName: airbyte-config-secrets
+      type: oidc
+      oidc:
+        domain: company.example
+        appName: airbyte
+        clientIdSecretKey: client-id
+        clientSecretSecretKey: client-secret
+```
+
+See [Access Management](/platform/access-management) for more details on SSO login and RBAC configuration.
+
+## Role-based access control (RBAC)
+
+Self-Managed Enterprise includes full RBAC with organization-level and workspace-level roles. The **Instance Admin** role (assigned to the first user) has unrestricted access to all workspaces and organizations.
+
+Available roles at the workspace level: **Reader**, **Runner**, **Editor**, **Admin**.
+Available roles at the organization level: **Member**, **Reader**, **Runner**, **Editor**, **Admin**.
+
+See [Access Management](/platform/access-management) for the full permissions matrix and role mapping automation.
+
+## Audit logging
+
+Audit logging gives visibility into data, environment, user, and permission changes for compliance and security investigation.
+
+### What is logged
+
+| Event | Logged operations |
+|-------|------------------|
+| Connections | Create, Update, Delete |
+| Sources | Create, Update, Delete, Partial Update, Upgrade Version |
+| Destinations | Create, Update, Delete, Partial Update, Upgrade Version |
+| Organizations | Create, Update, Delete |
+| Workspaces | Create, Update, Delete, Update Name, Update Organization |
+| Permissions | Create, Update, Delete |
+| Users | Create, Update, Delete |
+
+### Log format
+
+Audit logs are written as JSON files to the `/audit-logging/` directory in your configured blob storage bucket, using the naming convention `<yyyyMMddHHmmss>_<hostname>_<uuid>`.
+
+```json
+{
+  "id": "8478fcbd-d369-4bda-8d9b-b782cea5ad40",
+  "timestamp": 1746724563299,
+  "actor": {
+    "actorId": "1c26c465-58h8-43e6-8jko-2252b7g8a9e2",
+    "email": "user@airbyte.io",
+    "ipAddress": "192.000.000.0"
+  },
+  "operation": "deleteWorkspace",
+  "request": "<request object>",
+  "response": "<response object>",
+  "success": true,
+  "errorMessage": null
+}
+```
+
+### Enable audit logging
+
+<Steps>
+  <Step title="Configure blob storage">
+    Create a new bucket in AWS S3, GCS, or Azure Blob Storage. The bucket must be accessible using the same credentials Airbyte uses for log and state storage.
+  </Step>
+  <Step title="Update values.yaml">
+    <Tabs>
+      <Tab title="Helm chart V1">
+        ```yaml title="values.yaml"
+        server:
+          env_vars:
+            AUDIT_LOGGING_ENABLED: true
+            STORAGE_BUCKET_AUDIT_LOGGING: your-audit-logging-bucket
+        ```
+      </Tab>
+      <Tab title="Helm chart V2">
+        ```yaml title="values.yaml"
+        server:
+          auditLoggingEnabled: true
+
+        storage:
+          bucket:
+            auditLogging: your-audit-logging-bucket-name
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  <Step title="Redeploy">
+    ```bash
+    helm upgrade airbyte-enterprise airbyte/airbyte \
+      --namespace airbyte \
+      --values ./values.yaml
+    ```
+  </Step>
+</Steps>
+
+## Custom image registry
+
+You can configure Airbyte to pull all platform and connector Docker images from a private registry instead of Docker Hub:
+
+```yaml title="values.yaml"
+global:
+  image:
+    registry: ghcr.io/YOUR_NAMESPACE
+  imagePullSecrets:
+    - name: regcred
+```
+
+Use `abctl images manifest` to get the full list of images to mirror.
+
+## Multi-region deployments
+
+Self-Managed Enterprise supports multi-region deployments for data residency compliance and performance. See the [multi-region documentation](https://docs.airbyte.com/enterprise-setup/multi-region) for configuration details.

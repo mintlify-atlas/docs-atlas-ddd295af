@@ -1,0 +1,243 @@
+---
+title: "Building a source"
+description: "Implement AbstractSource, define HttpStream classes, and wire together check, discover, and read operations."
+---
+
+This guide covers the core classes and patterns for building an HTTP API source connector with the Python CDK.
+
+## The `AbstractSource` class
+
+Every connector subclasses `AbstractSource`. You must implement two methods:
+
+1. `check_connection` — validates the provided configuration
+2. `streams` — returns the list of `Stream` objects the connector exposes
+
+```python
+from airbyte_cdk.sources import AbstractSource
+from airbyte_cdk.sources.streams.http.auth import TokenAuthenticator
+from typing import Any, List, Mapping, Tuple
+
+from .streams import Users, Orders
+
+
+class SourceMyApi(AbstractSource):
+
+    def check_connection(self, logger, config: Mapping[str, Any]) -> Tuple[bool, Any]:
+        """
+        Validate that the config is valid and the source is reachable.
+        Return (True, None) on success or (False, error_message) on failure.
+        """
+        try:
+            auth = TokenAuthenticator(token=config["api_key"])
+            stream = Users(authenticator=auth)
+            # Attempt to read one record to verify connectivity
+            next(iter(stream.read_records(sync_mode="full_refresh")))
+            return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def streams(self, config: Mapping[str, Any]) -> List:
+        auth = TokenAuthenticator(token=config["api_key"])
+        return [
+            Users(authenticator=auth),
+            Orders(authenticator=auth),
+        ]
+```
+
+The `AbstractSource` implements `discover` by calling `get_json_schema()` on each stream, and implements `read` by calling `read_records()` on each stream in the catalog.
+
+## Defining streams
+
+### `HttpStream` base class
+
+For HTTP API sources, subclass `HttpStream`. At minimum, implement:
+
+- `url_base` — the base URL for all requests (property)
+- `path()` — the path appended to the base URL for this stream
+- `parse_response()` — extract records from the HTTP response
+
+```python
+from airbyte_cdk.sources.streams.http import HttpStream
+from typing import Any, Iterable, Mapping, MutableMapping, Optional
+import requests
+
+
+class Users(HttpStream):
+    url_base = "https://api.example.com/v1/"
+    primary_key = "id"
+
+    def path(
+        self,
+        stream_state: Mapping[str, Any] = None,
+        stream_slice: Mapping[str, Any] = None,
+        next_page_token: Mapping[str, Any] = None,
+    ) -> str:
+        return "users"
+
+    def parse_response(
+        self,
+        response: requests.Response,
+        **kwargs,
+    ) -> Iterable[Mapping]:
+        # Extract records from the response body
+        yield from response.json().get("data", [])
+```
+
+### Schema definition
+
+Create a JSON Schema file in the `schemas/` directory. The file name must match the stream's class name in snake_case:
+
+```json
+// schemas/users.json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": { "type": "integer" },
+    "name": { "type": "string" },
+    "email": { "type": "string", "format": "email" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}
+```
+
+For a class named `EmployeeBenefits`, the schema file should be `schemas/employee_benefits.json`.
+
+To generate the schema dynamically, override `get_json_schema()`:
+
+```python
+def get_json_schema(self) -> Mapping[str, Any]:
+    schema = super().get_json_schema()
+    # Add a dynamically determined property
+    schema["properties"]["computed_field"] = {"type": "string"}
+    return schema
+```
+
+## Authentication
+
+The CDK provides authenticator classes that attach credentials to every request:
+
+```python
+from airbyte_cdk.sources.streams.http.auth import (
+    TokenAuthenticator,
+    BasicHttpAuthenticator,
+    Oauth2Authenticator,
+)
+
+# Bearer token
+auth = TokenAuthenticator(token=config["api_key"])
+
+# Basic auth
+auth = BasicHttpAuthenticator(username=config["username"], password=config["password"])
+
+# OAuth 2.0 with refresh token
+auth = Oauth2Authenticator(
+    token_refresh_endpoint="https://api.example.com/oauth/token",
+    client_id=config["client_id"],
+    client_secret=config["client_secret"],
+    refresh_token=config["refresh_token"],
+)
+```
+
+Pass the authenticator when instantiating a stream:
+
+```python
+stream = Users(authenticator=auth)
+```
+
+## Pagination
+
+Override `next_page_token()` to implement pagination. Return `None` to stop. Use the token in `request_params()` or `path()`:
+
+```python
+def next_page_token(
+    self, response: requests.Response
+) -> Optional[Mapping[str, Any]]:
+    data = response.json()
+    if data.get("has_more"):
+        return {"starting_after": data["data"][-1]["id"]}
+    return None
+
+def request_params(
+    self,
+    stream_state: Mapping[str, Any],
+    stream_slice: Mapping[str, Any] = None,
+    next_page_token: Mapping[str, Any] = None,
+) -> MutableMapping[str, Any]:
+    params = {"limit": 100}
+    if next_page_token:
+        params.update(next_page_token)
+    return params
+```
+
+## Incremental streams
+
+To support incremental sync, mix in `IncrementalMixin` and set `cursor_field`:
+
+```python
+from airbyte_cdk.sources.streams.http import HttpStream
+from airbyte_cdk.sources.streams.core import IncrementalMixin
+from typing import Any, Mapping
+
+
+class Orders(HttpStream, IncrementalMixin):
+    url_base = "https://api.example.com/v1/"
+    primary_key = "id"
+    cursor_field = "updated_at"
+
+    def __init__(self, start_date: str, **kwargs):
+        super().__init__(**kwargs)
+        self._start_date = start_date
+        self._cursor_value = start_date
+
+    @property
+    def state(self) -> Mapping[str, Any]:
+        return {self.cursor_field: self._cursor_value}
+
+    @state.setter
+    def state(self, value: Mapping[str, Any]):
+        self._cursor_value = value[self.cursor_field]
+
+    def path(self, **kwargs) -> str:
+        return "orders"
+
+    def request_params(self, stream_state: Mapping[str, Any], **kwargs):
+        return {"updated_since": stream_state.get(self.cursor_field, self._start_date)}
+
+    def parse_response(self, response, **kwargs):
+        for record in response.json().get("orders", []):
+            self._cursor_value = max(
+                record[self.cursor_field], self._cursor_value
+            )
+            yield record
+```
+
+## Rate limiting
+
+The CDK retries automatically on HTTP 429 and 5xx responses using exponential backoff (5 retries by default). Override `should_retry()` and `backoff_time()` to customize:
+
+```python
+def should_retry(self, response: requests.Response) -> bool:
+    return response.status_code in (429, 500, 502, 503)
+
+def backoff_time(self, response: requests.Response) -> Optional[float]:
+    # Use the Retry-After header if available
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        return float(retry_after)
+    return None
+```
+
+## Connector entrypoint
+
+Create a `main.py` in the connector root:
+
+```python
+import sys
+from airbyte_cdk.entrypoint import launch
+from source_my_api import SourceMyApi
+
+if __name__ == "__main__":
+    source = SourceMyApi()
+    launch(source, sys.argv[1:])
+```

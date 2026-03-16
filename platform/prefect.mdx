@@ -1,0 +1,75 @@
+---
+title: "Orchestrate with Prefect"
+description: "Trigger Airbyte sync jobs from Prefect flows using the official prefect-airbyte integration."
+---
+
+Airbyte is an official integration in the Prefect project. The Airbyte Prefect Task allows you to trigger Airbyte sync jobs from Prefect flows.
+
+## Prerequisites
+
+- A running Airbyte self-managed instance
+- Prefect installed
+- Your Airbyte connection's **sync frequency** set to **manual** (Prefect will trigger it)
+
+## Set up a Prefect project
+
+```bash
+prefect create project "airbyte"
+```
+
+## Find your Airbyte connection ID
+
+The connection ID is visible in the URL on the connection page in the Airbyte UI at `localhost:8000`:
+
+```
+http://localhost:8000/workspaces/<WORKSPACE_ID>/connections/<CONNECTION_ID>/status
+```
+
+## Create a flow
+
+Create a new file `airbyte_prefect_flow.py`:
+
+```python
+from prefect import Flow
+from prefect.tasks.airbyte.airbyte import AirbyteConnectionTask
+
+airbyte_conn = AirbyteConnectionTask(
+    airbyte_server_host="localhost",
+    airbyte_server_port=8000,
+    airbyte_api_version="v1",
+    connection_id="04e128af-1092-4a83-bf33-1b8c85395d74"
+)
+
+with Flow("first-airbyte-task") as flow:
+    flow.add_task(airbyte_conn)
+
+# Register the flow under the "airbyte" project
+flow.register(project_name="airbyte")
+```
+
+Run the file to register the flow:
+
+```bash
+python3 airbyte_prefect_flow.py
+```
+
+After registration, navigate to the Prefect UI using the URL printed by the command, click **Run**, and configure your first run.
+
+## Task parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `airbyte_server_host` | Host URL of your Airbyte instance. |
+| `airbyte_server_port` | Port for your Airbyte instance. |
+| `airbyte_api_version` | API version. Default: `v1`. |
+| `connection_id` | The ID of the Airbyte connection to trigger. |
+
+## Scheduling
+
+After creating your first run, configure a schedule using [Prefect Schedules](https://docs.prefect.io/core/concepts/schedules.html).
+
+## Related resources
+
+- [Prefect Airbyte task documentation](https://docs.prefect.io/api/latest/tasks/airbyte.html)
+- [Prefect 2.0 community guide: orchestrating Airbyte with Prefect 2.0](https://www.prefect.io/guide/community-posts/orchestrating-airbyte-with-prefect-2-0/)
+- [Build an e-commerce analytics stack with Airbyte, dbt, Prefect, and BigQuery](https://github.com/airbytehq/quickstarts/tree/main/airbyte_dbt_prefect_bigquery)

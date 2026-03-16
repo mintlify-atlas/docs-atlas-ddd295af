@@ -1,0 +1,186 @@
+---
+title: "Testing your connector"
+description: "Run standard acceptance tests, write unit tests with pytest, and test locally with Docker."
+---
+
+Airbyte runs a layered testing strategy for connectors. Before your connector can be merged into the catalog, it must pass all applicable test suites.
+
+## Test suites
+
+| Suite | Description |
+| --- | --- |
+| **Unit tests** | Connector-specific tests that do not require access to the source API |
+| **Integration tests** | Connector-specific tests that may require a sandbox API account |
+| **Connector Acceptance Tests (CAT)** | Protocol-level tests that verify the connector adheres to the Airbyte specification |
+| **Regression tests** | Verify that behavior hasn't changed between connector versions (CI only) |
+
+## Unit and integration tests
+
+Python connectors use `pytest`. Run tests from the connector directory:
+
+```bash
+# From the connector directory
+poetry run pytest unit_tests/
+poetry run pytest integration_tests/
+```
+
+Place unit tests in `unit_tests/` and integration tests in `integration_tests/`. The `airbyte-ci` tool discovers them automatically.
+
+## Connector Acceptance Tests (CAT)
+
+The Standard Test Suite runs protocol-level tests against your connector's Docker image. It verifies that:
+
+- `spec` returns a valid connector specification
+- `check` returns success with a valid configuration
+- `discover` returns a valid catalog
+- `read` produces records matching the declared schema
+- Incremental sync respects the cursor field
+
+### Configuration file
+
+Create `acceptance-test-config.yml` in the connector root:
+
+```yaml
+connector_image: airbyte/source-my-connector:dev
+acceptance_tests:
+  spec:
+    tests:
+      - spec_path: "source_my_connector/spec.yaml"
+  connection:
+    tests:
+      - config_path: "secrets/config.json"
+        status: "succeed"
+  discovery:
+    tests:
+      - config_path: "secrets/config.json"
+  basic_read:
+    tests:
+      - config_path: "secrets/config.json"
+  full_refresh:
+    tests:
+      - config_path: "secrets/config.json"
+        configured_catalog_path: "integration_tests/configured_catalog.json"
+  incremental:
+    bypass_reason: "This connector does not support incremental sync."
+```
+
+For connectors that support incremental sync, replace `bypass_reason` with:
+
+```yaml
+  incremental:
+    tests:
+      - config_path: "secrets/config.json"
+        configured_catalog_path: "integration_tests/configured_catalog.json"
+```
+
+### Strictness level
+
+Set `test_strictness_level: high` for Generally Available connectors. This enforces that all test suites are declared, empty streams have a `bypass_reason`, and the `expect_records` subtest is configured:
+
+```yaml
+connector_image: airbyte/source-my-connector:dev
+test_strictness_level: high
+acceptance_tests:
+  spec:
+    tests:
+      - spec_path: "source_my_connector/spec.json"
+  connection:
+    tests:
+      - config_path: "secrets/config.json"
+        status: "succeed"
+  # ... other suites
+```
+
+## Building the Docker image
+
+**Preferred method** — use `airbyte-ci`:
+
+```bash
+airbyte-ci connectors --name source-my-connector build
+```
+
+This builds an image tagged `airbyte/source-my-connector:dev` using Airbyte's base image and build logic.
+
+**Alternative** — write a `Dockerfile`:
+
+```dockerfile
+FROM airbyte/python-connector-base:1.1.0
+
+COPY . ./airbyte/integration_code
+RUN pip install ./airbyte/integration_code
+```
+
+Build it:
+
+```bash
+docker build . -t airbyte/source-my-connector:dev
+```
+
+## Running acceptance tests locally
+
+**Option 1 — via `airbyte-ci`** (preferred):
+
+```bash
+airbyte-ci connectors --name=source-my-connector test
+```
+
+This runs unit tests, integration tests, and acceptance tests in sequence.
+
+**Option 2 — directly with pytest** (useful for debugging):
+
+```bash
+cd airbyte-integrations/bases/connector-acceptance-test/
+poetry install
+poetry run pytest -p connector_acceptance_test.plugin \
+  --acceptance-test-config=../../connectors/source-my-connector --pdb
+```
+
+## Secrets management
+
+Connector tests that require real API credentials read from a `secrets/` directory in the connector folder. This directory is excluded from git commits.
+
+Create `secrets/config.json` with your sandbox credentials:
+
+```json
+{
+  "api_key": "your-sandbox-api-key",
+  "start_date": "2023-01-01T00:00:00Z"
+}
+```
+
+<Warning>
+Never commit credentials to the repository. The `secrets/` directory should be listed in `.gitignore`.
+</Warning>
+
+For CI, secrets are stored in Google Secret Manager and referenced in `metadata.yaml`:
+
+```yaml
+connectorTestSuitesOptions:
+  - suite: acceptanceTests
+    testSecrets:
+      - name: SECRET_SOURCE-MY-CONNECTOR_CREDS
+        fileName: config.json
+        secretStore:
+          type: GSM
+          alias: airbyte-connector-testing-secret-store
+```
+
+<Note>
+Adding a new secret to the secret store requires manual action from an Airbyte team member. Contact your PR reviewer to set this up.
+</Note>
+
+## Dynamic test fixtures
+
+If your tests require spinning up external resources (e.g. a Docker container), use a pytest yield fixture in `integration_tests/acceptance.py`:
+
+```python
+import pytest
+import docker
+
+@pytest.fixture(scope="session", autouse=True)
+def connector_setup():
+    client = docker.from_env()
+    container = client.containers.run("your/docker-image", detach=True)
+    yield
+    container.stop()
+```

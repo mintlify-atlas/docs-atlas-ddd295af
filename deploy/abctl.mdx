@@ -1,0 +1,214 @@
+---
+title: "Deploy with abctl"
+description: "Use abctl, Airbyte's CLI installer, to deploy Airbyte on a local machine or VM without managing Kubernetes directly."
+---
+
+abctl is Airbyte's open source command-line tool for creating and managing local Airbyte instances. It uses [kind](https://kind.sigs.k8s.io/) to create a Kubernetes cluster inside a Docker container, then uses Helm to install Airbyte and an NGINX Ingress Controller. You interact with abctl rather than with Kubernetes directly.
+
+## When to use abctl
+
+Use abctl when you want to run Airbyte on a machine that has Docker but does not have a dedicated Kubernetes cluster. This is the recommended approach for local development, prototyping, and single-VM deployments.
+
+<Note>
+  For production deployments on managed Kubernetes (EKS, GKE, AKS), use the [Helm-based Kubernetes guide](/deploy/kubernetes) instead.
+</Note>
+
+## Prerequisites
+
+- Docker Desktop (or Docker Engine on Linux) installed and running
+  - [Mac](https://docs.docker.com/desktop/install/mac-install/)
+  - [Windows](https://docs.docker.com/desktop/install/windows-install/)
+  - [Linux](https://docs.docker.com/desktop/install/linux-install/) — on headless VMs, Docker Engine is often easier than Docker Desktop
+
+## Install abctl
+
+<Tabs>
+  <Tab title="curl">
+    ```shell
+    curl -LsfS https://get.airbyte.com | bash -
+    ```
+
+    Enter your password if prompted. Installation is complete when you see `abctl install succeeded`.
+  </Tab>
+  <Tab title="Homebrew">
+    ```bash
+    brew tap airbytehq/tap
+    brew install abctl
+    ```
+
+    Keep abctl up to date:
+
+    ```bash
+    brew upgrade abctl
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```bash
+    go install github.com/airbytehq/abctl@latest
+    ```
+  </Tab>
+  <Tab title="Linux (manual)">
+    1. Check your processor architecture:
+
+        ```bash
+        uname -m
+        ```
+
+        `x86_64` → download the `linux-amd64` release. `aarch64` → download the `linux-arm64` release.
+
+    2. Download the [latest release](https://github.com/airbytehq/abctl/releases/latest) for your architecture.
+
+    3. Extract the archive:
+
+        ```bash
+        tar -xvzf {name-of-file-downloaded.linux-*.tar.gz}
+        ```
+
+    4. Make the binary executable:
+
+        ```bash
+        chmod +x abctl/abctl
+        ```
+
+    5. Move it to your PATH:
+
+        ```bash
+        sudo mv abctl /usr/local/bin
+        ```
+  </Tab>
+</Tabs>
+
+Verify the installation:
+
+```bash
+abctl version
+```
+
+## Install Airbyte
+
+Run the following command to install Airbyte. Depending on your internet speed, this may take up to 30 minutes.
+
+```bash
+abctl local install
+```
+
+When installation completes, Airbyte is accessible at `http://localhost:8000`.
+
+### Common install options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port` | `8000` | Port to expose Airbyte on. Use if `8000` is already in use. |
+| `--host` | (all traffic) | FQDN to restrict access to. Useful if you want a specific hostname. |
+| `--values` | — | Path to a Helm `values.yaml` file for custom configuration. |
+| `--secret` | — | Path to a Kubernetes secret file (can be set multiple times). |
+| `--low-resource-mode` | `false` | Reduces resource usage. Useful on machines with limited RAM or CPU. |
+| `--no-browser` | — | Disables auto-opening the browser after install. |
+| `--chart-version` | latest | Specifies a specific Airbyte Helm chart version. |
+
+Example using a custom values file:
+
+```bash
+abctl local install --secret my-secret.yaml --values values.yaml
+```
+
+## Access Airbyte
+
+Navigate to `http://localhost:8000` in your browser.
+
+To retrieve your login credentials:
+
+```bash
+abctl local credentials
+```
+
+This returns:
+
+```json
+{
+  "email": "[YOUR EMAIL]",
+  "password": "[RANDOM PASSWORD]",
+  "client-id": "[RANDOM CLIENT-ID]",
+  "client-secret": "[RANDOM CLIENT-SECRET]"
+}
+```
+
+Use the `email` and `password` to log into the UI. The `client-id` and `client-secret` are for programmatic access via the Airbyte API.
+
+To update your credentials:
+
+```bash
+abctl local credentials --email you@example.com --password MyStrongPassword
+```
+
+## Check your installation status
+
+```bash
+abctl local status
+```
+
+Example output:
+
+```text
+Existing cluster 'airbyte-abctl' found
+Found helm chart 'airbyte-abctl'
+  Status: deployed
+  Chart Version: 0.422.2
+  App Version: 0.63.15
+Found helm chart 'ingress-nginx'
+  Status: deployed
+  Chart Version: 4.11.1
+  App Version: 1.11.1
+Airbyte should be accessible via http://localhost:8000
+```
+
+## Manage your deployment
+
+### View Kubernetes deployments
+
+```bash
+abctl local deployments
+```
+
+### Restart Kubernetes
+
+```bash
+abctl local deployments --restart
+```
+
+### List Docker images
+
+```bash
+abctl images manifest
+```
+
+## Uninstall Airbyte
+
+To stop all containers but keep your data:
+
+```shell
+abctl local uninstall
+```
+
+To stop all containers and delete all data permanently:
+
+```shell
+abctl local uninstall --persisted
+rm -rf ~/.airbyte/abctl
+```
+
+<Warning>
+  The `--persisted` flag deletes all Airbyte data. This cannot be undone.
+</Warning>
+
+## Disable telemetry
+
+Set the `DO_NOT_TRACK` environment variable to any value to disable usage telemetry from abctl.
+
+## Debugging
+
+All abctl commands support `--verbose` to enable debug output:
+
+```bash
+abctl local install --verbose
+```

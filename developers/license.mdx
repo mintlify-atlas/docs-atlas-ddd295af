@@ -1,0 +1,89 @@
+---
+title: "License"
+description: "Airbyte uses dual licensing: MIT for connectors, and Elastic License v2 (ELv2) for the platform."
+---
+
+Airbyte uses dual licensing depending on the component.
+
+| Component | License |
+|---|---|
+| Connectors | MIT License |
+| Platform (server, UI, orchestration) | Elastic License v2 (ELv2) |
+
+## MIT License (connectors)
+
+All Airbyte connector code — including source and destination connectors and the Connector Development Kit — is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+
+MIT is a permissive open-source license. You can use, copy, modify, merge, publish, distribute, sublicense, and sell copies of the connector code freely, as long as you include the original copyright notice. There are no restrictions on commercial use.
+
+## Elastic License v2 (platform)
+
+The Airbyte platform — including the server, scheduler, frontend, and orchestration components — is licensed under the [Elastic License v2 (ELv2)](https://www.elastic.co/licensing/elastic-license).
+
+ELv2 is a source-available license. The full license text is reproduced below.
+
+<AccordionGroup>
+  <Accordion title="Elastic License v2 (ELv2) full text">
+    **Acceptance**
+
+    By using the software, you agree to all of the terms and conditions below.
+
+    **Copyright License**
+
+    The licensor grants you a non-exclusive, royalty-free, worldwide, non-sublicensable, non-transferable license to use, copy, distribute, make available, and prepare derivative works of the software, in each case subject to the limitations and conditions below.
+
+    **Limitations**
+
+    You may not provide the software to third parties as a hosted or managed service, where the service provides users with access to any substantial set of the features or functionality of the software.
+
+    You may not move, change, disable, or circumvent the license key functionality in the software, and you may not remove or obscure any functionality in the software that is protected by the license key.
+
+    You may not alter, remove, or obscure any licensing, copyright, or other notices of the licensor in the software. Any use of the licensor's trademarks is subject to applicable law.
+
+    **Patents**
+
+    The licensor grants you a license, under any patent claims the licensor can license, or becomes able to license, to make, have made, use, sell, offer for sale, import and have imported the software, in each case subject to the limitations and conditions in this license. This license does not cover any patent claims that you cause to be infringed by modifications or additions to the software. If you or your company make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately.
+
+    **Notices**
+
+    You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms. If you modify the software, you must include in any modified copies prominent notices stating that you have modified the software.
+
+    **No Other Rights**
+
+    These terms do not imply any licenses other than those expressly granted in these terms.
+
+    **Termination**
+
+    If you use the software in violation of these terms, such use is not licensed, and your licenses will automatically terminate. If the licensor provides you with a notice of your violation, and you cease all violation of this license no later than 30 days after you receive that notice, your licenses will be reinstated retroactively. However, if you violate these terms after such reinstatement, any additional violation of these terms will cause your licenses to terminate automatically and permanently.
+
+    **No Liability**
+
+    As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.
+  </Accordion>
+</AccordionGroup>
+
+## Frequently asked questions
+
+<AccordionGroup>
+  <Accordion title="Can I use Airbyte commercially?">
+    Yes. You can run Airbyte self-hosted for commercial purposes — for example, to power internal data pipelines or customer-facing data products — without restriction.
+  </Accordion>
+  <Accordion title="Can I offer Airbyte as a managed service?">
+    No. The ELv2 license prohibits providing the Airbyte platform to third parties as a hosted or managed service where users can access a substantial portion of its features. This means you cannot build a competing managed Airbyte offering.
+
+    Airbyte Cloud is the official hosted offering. If you need a managed deployment, contact Airbyte about its cloud and enterprise options.
+  </Accordion>
+  <Accordion title="Can I fork and modify Airbyte?">
+    Yes, for internal use or self-managed deployments. You must include prominent notices in any modified copies stating that you have modified the software, and you must preserve all license and copyright notices. The same restrictions on hosting apply to forks.
+  </Accordion>
+  <Accordion title="Can I use Airbyte connectors freely?">
+    Yes. Connectors are MIT-licensed. You can use, modify, and redistribute connector code without restriction, including commercially.
+  </Accordion>
+  <Accordion title="Does ELv2 affect the Airbyte API or Terraform provider?">
+    The API and Terraform provider interact with the Airbyte platform, which is ELv2-licensed. Using the API or Terraform provider to manage your own Airbyte deployment is permitted. What is not permitted is re-packaging the platform itself as a competing hosted service.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+This page provides a summary for general guidance. For legal questions about licensing, consult the full license texts and seek independent legal advice.
+</Note>

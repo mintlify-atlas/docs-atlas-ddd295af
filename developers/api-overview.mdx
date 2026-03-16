@@ -1,0 +1,156 @@
+---
+title: "Airbyte API"
+description: "Programmatically manage sources, destinations, connections, and jobs using the Airbyte REST API."
+---
+
+The Airbyte REST API lets you automate and integrate Airbyte into your own workflows. Use it to manage sources, destinations, connections, and jobs — or to embed Airbyte into orchestration pipelines and custom applications.
+
+## Base URL
+
+The base URL depends on how you're running Airbyte.
+
+| Deployment | Base URL |
+|---|---|
+| Airbyte Cloud | `https://api.airbyte.com/v1/` |
+| Self-managed (localhost) | `http://localhost:8000/api/public/v1/` |
+| Self-managed (web) | `<YOUR_AIRBYTE_URL>/api/public/v1/` |
+
+## Authentication
+
+All API requests require a Bearer token in the `Authorization` header.
+
+```bash
+Authorization: Bearer <YOUR_ACCESS_TOKEN>
+```
+
+To get an access token, you'll need to create API credentials in the Airbyte UI under **Settings → API**. See the [full API reference](https://reference.airbyte.com/reference/getting-started) for authentication details.
+
+### Handle token expiry
+
+Access tokens are short-lived. To avoid unnecessary errors:
+
+- Cache the token with its expected expiry time.
+- Validate the token before making a request. If it's expired, fetch a new one first.
+- If you receive a `401 Unauthorized` response, request a new token and retry the request once. Do not retry on consecutive 401 responses.
+
+## Key resources
+
+| Resource | Description |
+|---|---|
+| `sources` | Data sources configured in your workspace |
+| `destinations` | Data destinations configured in your workspace |
+| `connections` | Sync pipelines linking a source to a destination |
+| `jobs` | Individual sync runs and their status |
+| `workspaces` | Logical groupings of sources, destinations, and connections |
+
+## Rate limits
+
+Airbyte Cloud enforces rate limits to ensure fair access. If you exceed these limits, you'll receive `429 Too Many Requests` responses. Implement exponential backoff with jitter when retrying rate-limited requests.
+
+## Examples
+
+### List sources
+
+<Tabs>
+  <Tab title="Cloud">
+    ```bash
+    curl --request GET \
+         --url 'https://api.airbyte.com/v1/sources?workspaceIds=<YOUR_WORKSPACE_ID>' \
+         --header 'accept: application/json' \
+         --header 'authorization: Bearer <YOUR_ACCESS_TOKEN>'
+    ```
+  </Tab>
+  <Tab title="Self-managed (localhost)">
+    ```bash
+    curl --request GET \
+         --url 'http://localhost:8000/api/public/v1/sources' \
+         --header 'accept: application/json' \
+         --header 'authorization: Bearer <YOUR_ACCESS_TOKEN>'
+    ```
+  </Tab>
+  <Tab title="Self-managed">
+    ```bash
+    curl --request GET \
+         --url '<YOUR_AIRBYTE_URL>/api/public/v1/sources' \
+         --header 'accept: application/json' \
+         --header 'authorization: Bearer <YOUR_ACCESS_TOKEN>'
+    ```
+  </Tab>
+</Tabs>
+
+```json
+{
+  "data": [
+    {
+      "sourceId": "<YOUR_SOURCE_ID>",
+      "name": "Stripe",
+      "sourceType": "stripe",
+      "workspaceId": "<YOUR_WORKSPACE_ID>",
+      "configuration": {
+        "account_id": "<YOUR_ACCOUNT_ID>",
+        "start_date": "2023-07-01T00:00:00Z",
+        "client_secret": "************"
+      },
+      "createdAt": 1755562809
+    }
+  ],
+  "previous": "",
+  "next": ""
+}
+```
+
+### Trigger a sync
+
+```bash
+curl --request POST \
+     --url 'https://api.airbyte.com/v1/jobs' \
+     --header 'accept: application/json' \
+     --header 'authorization: Bearer <YOUR_ACCESS_TOKEN>' \
+     --header 'content-type: application/json' \
+     --data '{
+       "connectionId": "<YOUR_CONNECTION_ID>",
+       "jobType": "sync"
+     }'
+```
+
+```json
+{
+  "jobId": 12345,
+  "status": "pending",
+  "jobType": "sync",
+  "connectionId": "<YOUR_CONNECTION_ID>",
+  "startTime": "2024-01-15T10:30:00Z"
+}
+```
+
+### Get job status
+
+```bash
+curl --request GET \
+     --url 'https://api.airbyte.com/v1/jobs/<JOB_ID>' \
+     --header 'accept: application/json' \
+     --header 'authorization: Bearer <YOUR_ACCESS_TOKEN>'
+```
+
+```json
+{
+  "jobId": 12345,
+  "status": "succeeded",
+  "jobType": "sync",
+  "connectionId": "<YOUR_CONNECTION_ID>",
+  "startTime": "2024-01-15T10:30:00Z",
+  "lastUpdatedAt": "2024-01-15T10:35:22Z",
+  "duration": "PT5M22S",
+  "rowsSynced": 4821
+}
+```
+
+## Deprecated: Configuration API
+
+<Warning>
+The Configuration API is deprecated and no longer supported. It is an internal API designed for communication between Airbyte components, not for external use. Airbyte engineers may modify it without notice. Use the public REST API documented here instead.
+</Warning>
+
+## Full API reference
+
+The complete Airbyte API reference, including all endpoints, request and response schemas, and an interactive playground, is available at [reference.airbyte.com](https://reference.airbyte.com/reference/getting-started).

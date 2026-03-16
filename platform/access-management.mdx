@@ -1,0 +1,177 @@
+---
+title: "Access Management"
+description: "Configure roles, permissions, SSO, and RBAC for your Airbyte organization and workspaces."
+---
+
+Airbyte uses Role-Based Access Control (RBAC) to manage what users can do within organizations and workspaces. Administrators assign roles that grant different levels of permission.
+
+<Info>
+  **Self-Managed Enterprise** instances have an `Instance Admin` role in addition to the roles below. Airbyte assigns this role to the first user who logs on. This user has all permissions for all workspaces and organizations associated with the Enterprise account. To update this assignment, contact [Airbyte support](https://support.airbyte.com).
+</Info>
+
+## Organization roles
+
+Organization roles scope permissions to the entire organization, including all workspaces within it.
+
+| Permission | Member | Reader | Runner | Editor | Admin |
+|------------|:------:|:------:|:------:|:------:|:-----:|
+| Read organization | X | X | X | X | X |
+| Create / delete workspace | | | | X | X |
+| Modify organization settings (billing, SSO, user roles) | | | | | X |
+
+## Workspace roles
+
+Workspace roles scope permissions to a specific workspace. You can **override** an organization role by assigning a higher workspace role. However, you cannot assign a more restricted workspace role than the organization role that person holds.
+
+*Example: an Organization Admin must also be a Workspace Admin. An Organization Reader can be a Workspace Reader, Editor, or Admin.*
+
+| Permission | Reader | Runner | Editor | Admin |
+|------------|:------:|:------:|:------:|:-----:|
+| List connections, read workspace settings | X | X | X | X |
+| Start / cancel syncs and refreshes | | X | X | X |
+| Create, modify, delete sources and destinations | | | X | X |
+| Modify connections, clear data, manage connector builder | | | X | X |
+| Update workspace settings and connector versions | | | | X |
+
+## Setting roles
+
+<Steps>
+  <Step title="Open settings">
+    In the navigation bar, click **Workspace settings** or **Organization settings**, then select **Members**.
+  </Step>
+  <Step title="Change a role">
+    In the members table, click the current role under **Workspace role** or **Organization role**, and select a new role from the dropdown.
+  </Step>
+</Steps>
+
+<Warning>
+  Don't assign admin roles unless necessary. Once someone is an admin, you cannot demote them to a lower role.
+</Warning>
+
+## Best practices
+
+- Assign the **lowest** level of permission necessary at the organization level.
+- Grant higher roles at the **workspace** level for users who need additional access in specific workspaces.
+- Reserve Admin roles for users who actively manage settings and user access.
+
+## Single sign-on (SSO)
+
+<Info>
+  SSO is available for **Airbyte Cloud** (all plans) and **Self-Managed Enterprise** customers.
+</Info>
+
+Airbyte supports OpenID Connect (OIDC) for SSO with identity providers such as Okta and Microsoft Entra ID (Active Directory).
+
+### Logging in with SSO
+
+<Tabs>
+  <Tab title="Cloud">
+    1. Visit [Airbyte Cloud](https://cloud.airbyte.com) and click **Continue with SSO**.
+    2. Enter your **Company identifier** and click **Continue with SSO**. Airbyte forwards you to your IdP's login page.
+    3. Log in. Your IdP forwards you back to Airbyte.
+  </Tab>
+  <Tab title="Self-Managed">
+    1. Access your Airbyte instance. Airbyte automatically forwards you to your IdP's login page.
+    2. Log in. Your IdP forwards you back to Airbyte.
+  </Tab>
+</Tabs>
+
+### Configuring SSO (Self-Managed Enterprise)
+
+Add OIDC details to your `values.yaml`:
+
+```yaml title="values.yaml"
+global:
+  auth:
+    instanceAdmin:
+      firstName: ""
+      lastName: ""
+      emailSecretKey: ""    # Key in secret containing admin email
+      passwordSecretKey: "" # Key in secret containing admin password
+    identityProvider:
+      secretName: "airbyte-config-secrets"
+      type: "oidc"
+      oidc:
+        domain: ""              # e.g. company.example
+        appName: ""             # e.g. airbyte
+        clientIdSecretKey: ""   # Key in secret for OIDC client ID
+        clientSecretSecretKey: "" # Key in secret for OIDC client secret
+```
+
+## RBAC role mapping
+
+<Info>
+  RBAC role mapping is available for **Airbyte Pro**, **Enterprise Flex**, and **Self-Managed Enterprise**.
+</Info>
+
+Role mapping allows automatic assignment of Airbyte permissions based on your organization's existing group/role structure, without manual oversight.
+
+Role mapping is managed via the [Airbyte API](https://reference.airbyte.com/reference/start). The API exposes endpoints to create, update, and delete permissions.
+
+### Permission object structure
+
+Each workspace permission and each organization permission is a separate permission object. A user with organization-level Member access and Workspace Editor access in 3 workspaces has 4 total permission objects.
+
+```yaml
+# Mapping your company groups to Airbyte permissions
+{
+  "companyGroup1": [
+    {
+      "scope": "workspace",
+      "scopeId": "11111111-11111111-11111111-11111111",
+      "permissionType": "workspace_admin"
+    },
+    {
+      "scope": "workspace",
+      "scopeId": "22222222-22222222-22222222-22222222",
+      "permissionType": "workspace_reader"
+    }
+  ]
+}
+```
+
+Valid `permissionType` values include: `workspace_admin`, `workspace_editor`, `workspace_runner`, `workspace_reader`, `organization_admin`, `organization_editor`, `organization_reader`, `organization_member`.
+
+### Example role mapping script
+
+```python
+import json
+import airbyte_api
+from airbyte_api import api, models
+
+# Load your role mappings
+users_groups = json.load(open('usersGroups.json'))
+group_permissions = json.load(open('groupPermissions.json'))
+
+# Initialize the API client
+s = airbyte_api.AirbyteAPI(
+    security=models.Security(bearer_auth='<YOUR_TOKEN>'),
+)
+
+# List all users in your organization
+res = s.users.list_users(
+    request=api.ListUsersRequest(organization_id='00000000-00000000-00000000-00000000')
+)
+
+for user in res.users_response.data:
+    if user.email in users_groups:
+        for group in users_groups[user.email]:
+            if group in group_permissions:
+                for permission in group_permissions[group]:
+                    if permission["scope"] == "workspace":
+                        s.permissions.create_permission(
+                            request=models.PermissionCreateRequest(
+                                permission_type=permission["permissionType"],
+                                user_id=user.user_id,
+                                workspace_id=permission["scopeId"]
+                            )
+                        )
+                    elif permission["scope"] == "organization":
+                        s.permissions.create_permission(
+                            request=models.PermissionCreateRequest(
+                                permission_type=permission["permissionType"],
+                                user_id=user.user_id,
+                                organization_id=permission["scopeId"]
+                            )
+                        )
+```

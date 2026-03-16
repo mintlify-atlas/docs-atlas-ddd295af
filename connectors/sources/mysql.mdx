@@ -1,0 +1,148 @@
+---
+title: "MySQL Source"
+description: "Sync data from MySQL databases using binary log (binlog) CDC or standard cursor-based incremental replication."
+---
+
+Airbyte's certified MySQL source connector replicates data from MySQL databases. It supports Change Data Capture (CDC) via the MySQL binlog, all available sync modes, and large-table replication with checkpointing.
+
+## Features
+
+- CDC replication using the MySQL [binary log (binlog)](https://dev.mysql.com/doc/refman/8.0/en/binary-log.html).
+- All available sync modes.
+- Reliable replication at any table size with checkpointing.
+- SSL and SSH tunnel support.
+- Compatible with MySQL views.
+
+<Note>
+The minimum required Airbyte platform version to run source-mysql 3.4.0 is **v0.58.0**.
+</Note>
+
+## Prerequisites
+
+- A running MySQL server.
+- A database user with `SELECT`, `RELOAD`, `SHOW DATABASES`, `REPLICATION SLAVE`, and `REPLICATION CLIENT` privileges (for CDC mode).
+- (For CDC) Binary logging must be enabled on the MySQL server.
+- (For Airbyte Cloud) Your database must be accessible from Airbyte IPs.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create a dedicated read-only MySQL user">
+    ```sql
+    CREATE USER <user_name> IDENTIFIED BY 'your_password_here';
+    GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO <user_name>;
+    ```
+
+    If you use Standard replication mode (not recommended), only `SELECT` is required.
+  </Step>
+
+  <Step title="Enable binary logging">
+    Most cloud providers (AWS RDS, Google Cloud SQL) enable the binlog through a one-click option in their console.
+
+    For self-managed MySQL servers, configure `my.cnf`:
+
+    ```text
+    server-id                  = 223344
+    log_bin                    = mysql-bin
+    binlog_format              = ROW
+    binlog_row_image           = FULL
+    binlog_expire_logs_seconds = 864000
+    ```
+
+    <Note>
+    AWS RDS does not use `binlog_expire_logs_seconds`. Use the `binlog retention hours` parameter instead and set it to a non-zero value. See the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/mysql-stored-proc-configuring.html).
+    </Note>
+  </Step>
+
+  <Step title="Create a new MySQL source in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **MySQL**, and create a new source.
+
+    1. Enter the hostname, port number, and database name.
+    2. Enter the username and password.
+    3. Select an SSL mode (`required` is the default).
+    4. Select **Read Changes using Binary Log (CDC)** as the replication method.
+  </Step>
+
+  <Step title="(Airbyte Cloud only) Allow inbound traffic from Airbyte IPs">
+    Add Airbyte's IP addresses to your database's allowlist. See the [Airbyte Security docs](https://docs.airbyte.com/platform/operating-airbyte/ip-allowlist).
+  </Step>
+</Steps>
+
+## Replication modes
+
+### CDC (recommended)
+
+Airbyte uses logical replication of the MySQL binlog to incrementally capture inserts, updates, and deletes.
+
+Use CDC when:
+- You need a record of row deletions.
+- Your tables are large (1 TB or more).
+- Your tables have primary keys but no reliable cursor field.
+
+### Standard
+
+Standard mode uses a user-defined cursor field (e.g., `updated_at`) for incremental syncs.
+
+Use Standard when:
+- Your MySQL server does not expose the binlog.
+- Your dataset is small and you only need a snapshot.
+
+## Configuration reference
+
+<ParamField path="host" type="string" required>
+  The hostname or IP address of the MySQL server.
+</ParamField>
+
+<ParamField path="port" type="integer" required>
+  The port number. Defaults to `3306`.
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  The name of the database to connect to.
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The username for authentication.
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  The password for authentication.
+</ParamField>
+
+<ParamField path="ssl" type="object">
+  SSL configuration. Options: `preferred`, `required`, `verify_ca`, `verify_identity`. Default is `required`.
+</ParamField>
+
+<ParamField path="replication_method" type="object" required>
+  Replication method. Options: `CDC` (recommended) or `STANDARD`.
+</ParamField>
+
+<ParamField path="tunnel_method" type="object">
+  SSH tunnel configuration. Options: `No Tunnel`, `SSH Key Authentication`, `Password Authentication`.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## SSL modes
+
+| Mode | Description |
+| --- | --- |
+| `preferred` | Encrypt only when the server supports it. On Airbyte Cloud, requires an SSH tunnel. |
+| `required` | Always require encryption (default). |
+| `verify_ca` | Always encrypt and verify the server certificate. |
+| `verify_identity` | Always encrypt and verify the server identity. |
+
+## Known limitations
+
+- `ZERO-DATE` values (e.g., `0000-00-00`) are converted to `NULL`.
+- Byte arrays are not yet supported.
+- PlanetScale MySQL has a per-query row limit that the connector handles automatically.
+
+For troubleshooting, see the [MySQL troubleshooting guide](https://docs.airbyte.com/integrations/sources/mysql/mysql-troubleshooting).

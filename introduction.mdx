@@ -1,0 +1,71 @@
+---
+title: "What is Airbyte?"
+description: "The leading open-source data integration platform for building ELT/ETL pipelines from 600+ sources to any destination."
+---
+
+Airbyte is an open-source data integration platform that helps you move data from any source to any destination. With 600+ pre-built connectors and powerful tools for building custom connectors, Airbyte makes it easy to centralize your data for analytics, AI, and more.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in minutes — deploy Airbyte and run your first sync
+  </Card>
+  <Card title="Deploy Airbyte" icon="server" href="/deploy/overview">
+    Self-host with Docker or Kubernetes, or use Airbyte Cloud
+  </Card>
+  <Card title="Browse Connectors" icon="plug" href="/connectors/overview">
+    Explore 600+ sources and destinations in the connector catalog
+  </Card>
+  <Card title="Build a Connector" icon="code" href="/connector-dev/overview">
+    Create custom connectors with the no-code Builder or Python CDK
+  </Card>
+</CardGroup>
+
+## Why Airbyte?
+
+Data teams at thousands of companies use Airbyte to solve the fundamental challenge of data movement:
+
+- **Breadth** — 600+ connectors covering APIs, databases, files, and data warehouses. If a connector doesn't exist, build it in minutes with the no-code Connector Builder.
+- **Reliability** — Built-in retry logic, error handling, and observability ensure your pipelines keep running.
+- **Flexibility** — Run it your way: self-hosted on Kubernetes, managed by Airbyte Cloud, or embedded via the API.
+- **Developer-first** — Full API, Terraform provider, Python SDK (PyAirbyte), and MCP server for AI agents.
+
+## How it works
+
+Airbyte moves data using an **ELT** (Extract, Load, Transform) pattern:
+
+1. **Extract** — A source connector reads data from your source system (Postgres, Salesforce, GitHub, etc.)
+2. **Load** — Airbyte loads raw data into your destination (BigQuery, Snowflake, S3, etc.)
+3. **Transform** — Use dbt, SQL, or your preferred tool to transform the raw data in your warehouse
+
+<Note>
+Airbyte does not transform data during transit. Raw data is loaded as-is, giving you full fidelity and control over transformations.
+</Note>
+
+## Deployment options
+
+<CardGroup cols={2}>
+  <Card title="Self-Hosted" icon="building" href="/deploy/overview">
+    Deploy on your own infrastructure using `abctl` (our CLI tool) or Helm on Kubernetes. Full control, no data leaves your environment.
+  </Card>
+  <Card title="Airbyte Cloud" icon="cloud" href="/deploy/cloud">
+    Fully managed by Airbyte. No infrastructure to manage — sign up and start syncing in minutes.
+  </Card>
+</CardGroup>
+
+## Key concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Source** | The system you're reading data from (e.g., Postgres, Salesforce) |
+| **Destination** | The system you're writing data to (e.g., BigQuery, Snowflake) |
+| **Connection** | A configured pipeline between a source and destination |
+| **Sync** | A single execution of a connection that moves data |
+| **Stream** | A logical table or dataset within a source or destination |
+| **Connector** | A packaged integration for a specific source or destination |
+
+## Community and support
+
+- Join the [Airbyte Community Slack](https://airbyte.com/community) for questions and discussions
+- Browse [GitHub Issues](https://github.com/airbytehq/airbyte/issues) for bug reports
+- Explore the [GitHub Discussions](https://github.com/airbytehq/airbyte/discussions) forum
+- Check out [tutorials and blog posts](https://airbyte.com/tutorials) for guided walkthroughs

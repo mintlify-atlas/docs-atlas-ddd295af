@@ -1,0 +1,154 @@
+---
+title: "Deploy on Kubernetes"
+description: "Deploy Airbyte to any Kubernetes cluster using the official Helm chart."
+---
+
+Airbyte is built to run in Kubernetes. The official Helm chart supports any Kubernetes environment: cloud-managed clusters (EKS, GKE, AKS), bare-metal, or single-node VMs with Kubernetes installed.
+
+<Note>
+  If you want to run Airbyte locally without managing Kubernetes yourself, use [abctl](/deploy/abctl) instead. This guide is for deployments to an existing Kubernetes cluster.
+</Note>
+
+## Prerequisites
+
+- A running Kubernetes cluster
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) configured to talk to your cluster
+- [Helm](https://helm.sh/docs/intro/install/) installed and on your PATH
+
+<Tip>
+  For local testing, Airbyte has tested successfully with Docker Desktop (Kubernetes extension), kind, k3s, and colima. For cloud deployments to a single VM, install Kubernetes on the VM first.
+</Tip>
+
+## Step 1: Add the Helm repository
+
+<Tabs>
+  <Tab title="Helm chart V2 (recommended)">
+    ```bash
+    helm repo add airbyte-v2 https://airbytehq.github.io/charts
+    helm repo update
+    ```
+
+    Browse available charts:
+
+    ```bash
+    helm search repo airbyte-v2
+    ```
+  </Tab>
+  <Tab title="Helm chart V1">
+    ```bash
+    helm repo add airbyte https://airbytehq.github.io/helm-charts
+    helm repo update
+    ```
+
+    Browse available charts:
+
+    ```bash
+    helm search repo airbyte
+    ```
+  </Tab>
+</Tabs>
+
+## Step 2: Create a namespace
+
+Isolating Airbyte in its own namespace is recommended.
+
+<Tabs>
+  <Tab title="Helm chart V2">
+    ```bash
+    kubectl create namespace airbyte-v2
+    ```
+  </Tab>
+  <Tab title="Helm chart V1">
+    ```bash
+    kubectl create namespace airbyte
+    ```
+  </Tab>
+</Tabs>
+
+## Step 3: Create a values.yaml file
+
+Create a `values.yaml` file to override default Helm chart settings. You only need to include the values you want to change—you do not need to copy the entire chart values file.
+
+A minimal example:
+
+```yaml title="values.yaml"
+global:
+  airbyteUrl: https://airbyte.example.com
+```
+
+Common configuration sections:
+
+| Section | Key values |
+|---|---|
+| `global.airbyteUrl` | The URL where Airbyte will be accessed. Should match your Ingress host. |
+| `global.auth.enabled` | Enable or disable authentication. |
+| `global.database` | Configure an external PostgreSQL database instead of the bundled one. |
+| `global.storage` | Configure S3, GCS, or Azure Blob Storage for logs and state. Storage type defaults to `minio`. |
+| `global.image.registry` | Custom Docker registry for air-gapped or private registry deployments. |
+| `ingress.enabled` | Set to `true` to create an Ingress resource. |
+
+For customizing cloud infrastructure integrations (external databases, secret managers, object storage), see the [values.yaml reference](https://airbyte.com/docs) and the cloud provider infrastructure guides.
+
+## Step 4: Install Airbyte
+
+<Tabs>
+  <Tab title="Helm chart V2">
+    First, identify the chart version that corresponds to the Airbyte version you want:
+
+    ```bash
+    helm search repo airbyte-v2 --versions
+    ```
+
+    Then install:
+
+    ```bash
+    helm install airbyte airbyte-v2/airbyte \
+      --namespace airbyte-v2 \
+      --values ./values.yaml \
+      --version 2.0.18
+    ```
+  </Tab>
+  <Tab title="Helm chart V1">
+    ```bash
+    helm install airbyte airbyte/airbyte \
+      --namespace airbyte \
+      --values ./values.yaml
+    ```
+  </Tab>
+</Tabs>
+
+## Step 5: Access the UI
+
+After installation, set up a port-forward to access the Airbyte UI:
+
+<Tabs>
+  <Tab title="Helm chart V2">
+    ```bash
+    kubectl -n airbyte-v2 port-forward deployment/airbyte-server 8080:8001
+    ```
+  </Tab>
+  <Tab title="Helm chart V1">
+    ```bash
+    kubectl -n airbyte port-forward deployment/airbyte-server 8080:8001
+    ```
+  </Tab>
+</Tabs>
+
+Open `http://127.0.0.1:8080` in your browser.
+
+<Tip>
+  For a more permanent setup, configure an Ingress resource. The Helm chart has built-in support for ingress configuration under `ingress` and `webapp.ingress` in `values.yaml`. Airbyte recommends NGINX for local-to-cluster deployments.
+</Tip>
+
+## Upgrading
+
+Upgrade Airbyte by running `helm upgrade` with the new chart version:
+
+```bash
+helm upgrade airbyte airbyte-v2/airbyte \
+  --namespace airbyte-v2 \
+  --values ./values.yaml \
+  --version <new-version>
+```
+
+Review Airbyte's upgrade documentation before upgrading to understand any breaking changes or migration steps required.

@@ -1,0 +1,181 @@
+---
+title: "S3 Destination"
+description: "Store Airbyte data in Amazon S3 as CSV, JSONL, Avro, or Parquet files. Supports IAM User and IAM Role authentication."
+---
+
+The S3 destination connector writes data from Airbyte to Amazon S3 or Minio S3. Each stream is written to its own directory under the configured bucket and path. Supports CSV, JSONL, Avro, and Parquet output formats.
+
+## Prerequisites
+
+- An AWS account with access to S3.
+- An S3 bucket with an IAM policy granting the required permissions.
+- Authentication via IAM User credentials, IAM Role ARN, or Instance Profile.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create an IAM policy">
+    Create a policy with write permissions on your bucket:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:DeleteObject",
+            "s3:PutObjectAcl",
+            "s3:ListBucket",
+            "s3:ListBucketMultipartUploads",
+            "s3:AbortMultipartUpload",
+            "s3:GetBucketLocation"
+          ],
+          "Resource": [
+            "arn:aws:s3:::YOUR_BUCKET_NAME/*",
+            "arn:aws:s3:::YOUR_BUCKET_NAME"
+          ]
+        }
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Configure authentication">
+    <Tabs>
+      <Tab title="IAM User">
+        1. Create an IAM user and attach the policy.
+        2. Generate an Access Key ID and Secret Access Key.
+      </Tab>
+      <Tab title="IAM Role (most secure)">
+        <Note>
+        IAM Role authentication for Airbyte Cloud requires enablement by the Airbyte team.
+        </Note>
+
+        1. Create an IAM Role and attach the policy.
+        2. Configure a trust relationship to allow Airbyte's AWS account to assume the role.
+        3. Set the External ID to your Airbyte workspace ID.
+        4. Note the Role ARN.
+      </Tab>
+      <Tab title="Instance Profile">
+        If Airbyte is running on EC2 or EKS with an instance profile that has the required permissions, no credentials are needed.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Set up the S3 destination in Airbyte">
+    In the Airbyte UI, go to **Destinations**, search for **S3**, and create a new destination.
+
+    Configure the required fields and click **Set up destination**.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="s3_bucket_name" type="string" required>
+  The S3 bucket name.
+</ParamField>
+
+<ParamField path="s3_bucket_path" type="string" required>
+  Subdirectory under the bucket to sync data into. Defaults to `airbyte-data`.
+</ParamField>
+
+<ParamField path="s3_bucket_region" type="string" required>
+  AWS region code (e.g., `us-east-1`).
+</ParamField>
+
+<ParamField path="access_key_id" type="string">
+  AWS Access Key ID. Required for IAM User authentication.
+</ParamField>
+
+<ParamField path="secret_access_key" type="string">
+  AWS Secret Access Key. Required for IAM User authentication.
+</ParamField>
+
+<ParamField path="role_arn" type="string">
+  AWS IAM Role ARN for STS Assume Role authentication.
+</ParamField>
+
+<ParamField path="s3_endpoint" type="string">
+  Leave empty for AWS S3. Enter the endpoint URL for Minio or other S3-compatible services.
+</ParamField>
+
+<ParamField path="s3_path_format" type="string">
+  Path format for output files. Default: `${NAMESPACE}/${STREAM_NAME}/${YEAR}_${MONTH}_${DAY}_${EPOCH}_`.
+  
+  Available variables: `${NAMESPACE}`, `${STREAM_NAME}`, `${YEAR}`, `${MONTH}`, `${DAY}`, `${HOUR}`, `${MINUTE}`, `${SECOND}`, `${MILLISECOND}`, `${EPOCH}`, `${UUID}`.
+</ParamField>
+
+<ParamField path="s3_filename_pattern" type="string">
+  Filename format pattern. Supported placeholders: `{date}`, `{date:yyyy_MM}`, `{timestamp}`, `{timestamp:millis}`, `{timestamp:micros}`, `{part_number}`, `{sync_id}`, `{format_extension}`.
+</ParamField>
+
+<ParamField path="format" type="object" required>
+  Output format configuration. Options: `CSV`, `JSONL`, `Avro`, `Parquet`.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Full Refresh - Overwrite + Deduped | No |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | No |
+
+<Warning>
+In **Full Refresh - Overwrite** mode, data from the same sync generation is retained while all previous data is deleted on a successful sync. In case of failures between generations, data from multiple generations may persist. Each S3 object is tagged with `x-amz-meta-ab-generation-id` to identify its generation.
+</Warning>
+
+## Output formats
+
+### CSV
+
+CSV output includes these columns by default:
+
+| Column | Description |
+| --- | --- |
+| `_airbyte_raw_id` | UUID for each processed record. |
+| `_airbyte_extracted_at` | Timestamp when the event was extracted from the source. |
+| `_airbyte_generation_id` | Integer ID that increases with each new refresh. |
+| `_airbyte_meta` | Structured metadata object. |
+| `_airbyte_data` | JSON blob (when no normalization is applied). |
+
+When **root level normalization** is enabled, source fields are expanded to individual columns.
+
+Output files are GZIP-compressed by default (`.csv.gz`).
+
+### JSONL
+
+One JSON object per line, each with `_airbyte_raw_id`, `_airbyte_extracted_at`, `_airbyte_generation_id`, `_airbyte_meta`, and `_airbyte_data` fields.
+
+Output files are GZIP-compressed by default (`.jsonl.gz`).
+
+### Avro
+
+Binary encoded Avro using the `binary` encoding. Available compression codecs: none, `deflate` (levels 0–9), `bzip2`, `xz` (levels 0–9), `zstandard` (levels -5 to 22), `snappy`.
+
+### Parquet
+
+Configurable block size, page size, and compression codec. Available codecs: `UNCOMPRESSED`, `SNAPPY`, `GZIP`, `LZO`, `BROTLI`, `LZ4`, `ZSTD`.
+
+## Output path structure
+
+With the default path format, files are written as:
+
+```text
+<bucket-name>/<source-namespace>/<stream-name>/<date>_<epoch>_<part-id>.<format-extension>
+```
+
+For example:
+
+```text
+testing_bucket/public/users/2021_01_01_1234567890_0.csv.gz
+```
+
+## Namespace support
+
+This destination supports [namespaces](https://docs.airbyte.com/platform/using-airbyte/core-concepts/namespaces). The namespace is used as part of the S3 output path.

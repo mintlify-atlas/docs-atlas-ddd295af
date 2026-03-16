@@ -1,0 +1,120 @@
+---
+title: "Google Sheets Source"
+description: "Read data from a Google Sheets spreadsheet. Each sheet becomes a stream. Supports OAuth and Service Account Key authentication."
+---
+
+The Google Sheets source connector reads data from a single Google Sheets spreadsheet. Each sheet (tab) within the spreadsheet is synced as a separate stream. All column values are treated as strings.
+
+<Info>
+This connector syncs data from a single spreadsheet. To sync multiple spreadsheets, use the Google Drive connector or create multiple Google Sheets source connections. Only the specified spreadsheet is accessed—no other Google Drive files are read.
+</Info>
+
+## Prerequisites
+
+- The link to the Google Sheets spreadsheet you want to sync.
+- **Airbyte Cloud**: A Google Workspace user with access to the spreadsheet.
+- **Airbyte Open Source**: A GCP project, Google Sheets API enabled, and a Service Account Key.
+
+## Setup guide
+
+<Tabs>
+  <Tab title="Airbyte Cloud (OAuth)">
+    <Steps>
+      <Step title="Set up the connector in Airbyte">
+        1. In the Airbyte UI, go to **Sources**, search for **Google Sheets**, and create a new source.
+        2. Select **Authenticate via Google (OAuth)** and click **Sign in with Google**.
+        3. Complete the authentication flow.
+      </Step>
+      <Step title="Enter the spreadsheet link">
+        Open the Google Sheets spreadsheet, click **Share**, then **Copy Link**, and paste it into the **Spreadsheet Link** field.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Airbyte Open Source (Service Account)">
+    <Steps>
+      <Step title="Create a service account">
+        1. Open the [Service Accounts page](https://console.cloud.google.com/projectselector2/iam-admin/serviceaccounts) in Google Cloud Console.
+        2. Select or create a project, then click **+ Create service account**.
+        3. Grant the **Viewer** role.
+      </Step>
+      <Step title="Generate a JSON key">
+        1. Go to **API Console > Credentials** and click the service account's email.
+        2. In the **Keys** tab, click **+ Add key > Create new key**.
+        3. Select **JSON** and download the key file.
+      </Step>
+      <Step title="Enable the Google Sheets API">
+        1. Go to **API Console > Library**.
+        2. Search for **Google Sheets API** and click **ENABLE**.
+      </Step>
+      <Step title="Share the spreadsheet">
+        Share the spreadsheet with the service account email address (granting at least Viewer access), or make it viewable to anyone with the link.
+      </Step>
+      <Step title="Set up the connector in Airbyte">
+        1. In the Airbyte UI, go to **Sources**, search for **Google Sheets**, and create a new source.
+        2. Select **Service Account Key Authentication** and paste the JSON key.
+        3. Enter the spreadsheet link.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Configuration reference
+
+<ParamField path="spreadsheet_id" type="string" required>
+  The link (URL) to the Google Sheets spreadsheet.
+</ParamField>
+
+<ParamField path="credentials" type="object" required>
+  Authentication method: OAuth or Service Account Key.
+</ParamField>
+
+<ParamField path="batch_size" type="integer">
+  Number of rows to request per API call. Default: `1,000,000`. Decrease if you encounter timeout errors on large or complex sheets.
+</ParamField>
+
+<ParamField path="names_conversion" type="boolean">
+  When enabled, converts column names to SQL-compliant format (lowercase, underscores). Recommended for SQL-based destinations. Default: `false`.
+</ParamField>
+
+<ParamField path="stream_name_overrides" type="array">
+  Optional list of objects mapping `source_stream_name` (the sheet name) to `custom_stream_name`. Use to rename sheets as they appear in Airbyte.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Incremental | No |
+
+## Available streams
+
+Each sheet (Grid type only) in the spreadsheet becomes a stream. Each column is synced as a string field.
+
+<Note>
+Only [Grid](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#SheetType) sheets are supported. Chart and other sheet types are skipped.
+</Note>
+
+## Column name conversion
+
+When **Convert Column Names to SQL-Compliant Format** is enabled, the following options become available:
+
+| Option | Description |
+| --- | --- |
+| Remove leading/trailing underscores | Strips leading and trailing underscores from column names. |
+| Combine number-word pairs | Combines adjacent numbers and words into a single token. |
+| Remove all special characters | Strips characters like `*`, `?`, `!`, `$`, `%` from names. |
+| Combine letter-number pairs | Combines adjacent letters and numbers. |
+| Allow leading numbers | Allows column names to start with digits; adds a leading underscore if disabled. |
+
+## Duplicate header handling
+
+If your spreadsheet contains duplicate column headers, the connector appends the cell position (e.g., `_C1`, `_Q1`) to create unique field names. This ensures data from both columns is captured.
+
+## Known limitations
+
+- **Rate limits**: 300 read requests per minute per project; 60 requests per minute per user per project. Avoid using more than 3 connector instances with the same service account.
+- **Empty sheets**: If a sheet is empty or deleted, Airbyte skips it without deleting the destination table.
+- **Non-Google formats**: Setup will fail if the file is not a native Google Sheets file.
+- **Schema inference**: Schemas are inferred from the first file found. All columns are treated as strings.

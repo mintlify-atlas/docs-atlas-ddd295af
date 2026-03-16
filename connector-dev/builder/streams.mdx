@@ -1,0 +1,80 @@
+---
+title: "Defining streams"
+description: "Configure endpoint URL, HTTP method, record selector, and schema for each stream in Connector Builder."
+---
+
+A **stream** represents one resource in the API you are connecting to. If the API is a relational database, each stream is a table. In a REST API, each stream corresponds to one endpoint — for example, `/users`, `/orders`, or `/products`.
+
+A single connector can have multiple streams. Each stream is configured independently with its own endpoint, pagination, and incremental sync settings, but they all share the connector's global authentication.
+
+## Stream configuration fields
+
+### Name
+
+The stream name is used as the table or file name in the destination. Use a descriptive, lowercase, snake_case name such as `customers` or `order_line_items`.
+
+### API endpoint URL
+
+The full URL of the API endpoint for this stream. You can use Jinja templates to inject user inputs:
+
+```
+https://api.example.com/v2/{{ config['resource_type'] }}
+```
+
+### HTTP method
+
+Most read operations use `GET`. Some APIs return data via `POST` requests — select the correct method for your endpoint.
+
+### Record selector (field path)
+
+After the API returns a response, the Builder needs to know where in the response body the records are located. Most APIs wrap records in a key:
+
+```json
+{
+  "data": [
+    { "id": 1, "name": "Alice" },
+    { "id": 2, "name": "Bob" }
+  ],
+  "meta": { "total": 2 }
+}
+```
+
+For this response, set the field path to `data`. For a nested path like `response.results.items`, enter each segment separately: `response`, `results`, `items`.
+
+If the API returns a top-level array (no wrapper key), leave the field path empty.
+
+### Primary key
+
+The field or fields that uniquely identify a record. Used by Airbyte to deduplicate records in supported destinations. A single field like `id` is common; composite keys can be specified as multiple fields.
+
+### Schema
+
+The schema describes the fields and types in each record. The Builder automatically detects a schema from your test data. You can edit the detected schema manually or switch to the **Schema** tab to provide a JSON Schema directly.
+
+## Adding multiple streams
+
+Click the **+** icon next to **Streams** to add another stream. Each stream is independent — you can configure different endpoints, pagination strategies, and incremental sync settings per stream.
+
+All streams in a connector share the same authentication configuration defined in **Global Configuration**. It is not possible to use different authentication methods for different streams in the same connector. If you need per-stream authentication, use the [Low-Code CDK](/connector-dev/low-code-cdk) or [Python CDK](/connector-dev/python-cdk/overview).
+
+## Query parameters and headers
+
+Use the **Query Parameters** and **Request Headers** sections to add static or dynamic key-value pairs to every request for a stream:
+
+| Key | Value |
+| --- | --- |
+| `format` | `json` |
+| `version` | `{{ config['api_version'] }}` |
+
+## Testing a stream
+
+Click **Test** to send a live request to the API and inspect the response. The Builder displays:
+
+- **Records** — the extracted records after applying the field path
+- **Request** — the full HTTP request that was sent
+- **Response** — the raw response body and headers
+- **Schema** — the inferred JSON Schema from the response
+
+<Tip>
+Test with a small page size to retrieve results quickly. If a test returns no records, check the field path setting — it may not match the structure of the response.
+</Tip>

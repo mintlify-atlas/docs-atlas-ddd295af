@@ -1,0 +1,171 @@
+---
+title: "Pagination"
+description: "Configure offset increment, page increment, cursor, or custom pagination in Connector Builder."
+---
+
+Pagination is the mechanism APIs use to split large result sets into multiple pages. Without pagination configuration, your connector only retrieves the first page of results.
+
+Enable pagination in the stream's **Pagination** section. If your API returns all records in a single response, leave pagination disabled.
+
+## Supported pagination methods
+
+<Tabs>
+  <Tab title="Offset increment">
+    **When to use it**: The API docs mention `offset` and `limit` parameters.
+
+    The connector sends a `limit` (maximum records per page) and an `offset` (starting index). After each page, the offset is incremented by the number of records received. Pagination stops when fewer records than the limit are returned.
+
+    **Example configuration** for an API with 5 total records:
+
+    - **Mode**: Offset Increment
+    - **Limit**: `2`
+    - **Inject limit into**: `request_parameter`, field name `limit`
+    - **Inject offset into**: `request_parameter`, field name `offset`
+
+    Requests made:
+
+    ```
+    GET https://api.example.com/products?limit=2&offset=0
+      -> [Product A, Product B]
+
+    GET https://api.example.com/products?limit=2&offset=2
+      -> [Product C, Product D]
+
+    GET https://api.example.com/products?limit=2&offset=4
+      -> [Product E]   // fewer than 2 records -> stop
+    ```
+
+    <Tip>Use the largest page size the API allows to minimize the number of requests.</Tip>
+
+    **Advanced options**
+    - **Inject Offset on First Request** — enable if the API requires an explicit `offset=0` on the first request
+    - **Interpolated Page Size** — use `{{ config['page_size'] }}` to make the limit configurable by end users
+
+    **APIs using this method**: [Spotify](https://developer.spotify.com/documentation/web-api/concepts/api-calls#pagination), [GIPHY](https://developers.giphy.com/docs/api/endpoint#trending), [Twilio SendGrid](https://docs.sendgrid.com/api-reference/how-to-use-the-sendgrid-v3-api/responses#pagination)
+  </Tab>
+  <Tab title="Page increment">
+    **When to use it**: The API docs mention `page`, `page_number`, `pagenum`, or `per_page` parameters.
+
+    The connector sends a page number starting from a configurable value (usually `0` or `1`) and increments by 1 for each subsequent request. Pagination stops when an empty page is returned.
+
+    **Example configuration** for 6 records with page size 3, starting at page 1:
+
+    - **Mode**: Page Increment
+    - **Page size**: `3`
+    - **Start from page**: `1`
+    - **Inject page size into**: `request_parameter`, field name `page_size`
+    - **Inject page number into**: `request_parameter`, field name `page`
+
+    Requests made:
+
+    ```
+    GET https://api.example.com/products?page_size=3&page=1
+      -> [Product A, Product B, Product C]
+
+    GET https://api.example.com/products?page_size=3&page=2
+      -> [Product D, Product E, Product F]
+
+    GET https://api.example.com/products?page_size=3&page=3
+      -> []   // no records -> stop
+    ```
+
+    **Zero-based vs one-based pagination**
+
+    Set **Start From Page** to `0` for zero-based (`page=0, 1, 2, ...`) or `1` for one-based (`page=1, 2, 3, ...`).
+
+    **APIs using this method**: [WooCommerce](https://woocommerce.github.io/woocommerce-rest-api-docs/#pagination), [FreshDesk](https://developers.freshdesk.com/api/)
+  </Tab>
+  <Tab title="Cursor pagination">
+    **When to use it**: The API docs mention `cursor`, `next_token`, or `link` headers.
+
+    A cursor value (ID, timestamp, or token) from each response is passed as a parameter in the next request. This avoids the duplicate/skipped record issues that can occur with offset-based pagination.
+
+    **Example — Twitter API** returns `meta.next_token` in the response:
+
+    ```json
+    {
+      "data": [ ... ],
+      "meta": {
+        "result_count": 100,
+        "next_token": "7140w"
+      }
+    }
+    ```
+
+    Configuration:
+    - **Next page cursor**: `response` → path `meta`, `next_token`
+    - **Inject into**: `request_parameter`, field name `pagination_token`
+
+    The connector stops when the cursor path returns no value.
+
+    **Example — Stripe API** uses the last record's `id` as the cursor:
+
+    ```json
+    {
+      "data": [{"id": "cus_123"}, {"id": "cus_456"}],
+      "has_more": true
+    }
+    ```
+
+    Configuration:
+    - **Cursor value** (custom): `{{ last_record['id'] }}`
+    - **Inject into**: `request_parameter`, field name `starting_after`
+    - **Stop condition**: `{{ response.has_more is false }}`
+
+    **Example — GitHub API** returns a full URL in the `Link` response header:
+
+    ```
+    Link: <https://api.github.com/repos/octocat/Hello-World/issues?page=2>; rel="next"
+    ```
+
+    Configuration:
+    - **Cursor value**: `{{ headers.link.next.url }}`
+    - **Inject into**: `request_path` (replaces the entire URL)
+    - **Stop condition**: `{{ 'next' not in headers['link'] }}`
+
+    **Available context in cursor templates**:
+    - `response` — full response body
+    - `headers` — response headers
+    - `last_record` — the last record from the current page
+    - `last_page_size` — number of records on the current page
+    - `config` — connector configuration
+  </Tab>
+  <Tab title="Custom strategy">
+    For APIs that use a pagination mechanism not covered by the built-in methods, you can implement a custom Python class.
+
+    Set **Pagination method** to **Custom Pagination Strategy** and set **Class Name** to the fully-qualified class name in your connector code:
+
+    ```python
+    # source_myapi/components.py
+    from airbyte_cdk.sources.declarative.requesters.paginators.strategies.pagination_strategy import PaginationStrategy
+
+    class MyCustomPaginationStrategy(PaginationStrategy):
+        def next_page_token(self, response, last_page_size, last_record, last_page_token_value):
+            # Return the next page token or None to stop
+            pass
+
+        def get_page_size(self):
+            return self.page_size
+    ```
+
+    Set **Class Name** to `source_myapi.components.MyCustomPaginationStrategy`.
+  </Tab>
+</Tabs>
+
+## Custom parameter injection
+
+If the built-in injection options don't cover your API's requirements (e.g. combining offset and limit into a single parameter), disable injection in the pagination form and use the generic **Request Parameters** section at the bottom of the stream configuration.
+
+Example — [Prestashop API](https://devdocs.prestashop-project.org/8/webservice/cheat-sheet/#list-options) requires `?limit=<offset>,<limit>`:
+
+| Key | Value |
+| --- | --- |
+| `limit` | `{{ next_page_token['next_page_token'] or '0' }},50` |
+
+## Testing pagination
+
+When testing, set a small page size (2–5 records) so you can see multiple pages in the test output. Verify that:
+
+1. The correct number of total records is returned
+2. No records are duplicated or skipped
+3. The connector stops after the last page

@@ -1,0 +1,71 @@
+---
+title: "Build custom connectors"
+description: "Choose the right tool to build a source connector for any API: no-code Connector Builder, low-code YAML CDK, or full Python CDK."
+---
+
+If the connector you need doesn't exist in Airbyte's catalog, you can build it yourself. Three development paths are available, each suited to a different level of complexity.
+
+<Note>
+Before starting, review the [Airbyte protocol specification](https://docs.airbyte.com/understanding-airbyte/airbyte-protocol) and the [connector best practices](/connector-dev/best-practices). For questions during development, join the [#connector-development Slack channel](https://airbytehq.slack.com/archives/C027KKE4BCZ).
+</Note>
+
+## Development paths
+
+<CardGroup cols={3}>
+  <Card title="Connector Builder" icon="hammer" href="/connector-dev/connector-builder">
+    No-code UI inside the Airbyte web app. Configure streams, authentication, and pagination through guided forms. Best for most REST APIs.
+  </Card>
+  <Card title="Low-Code CDK" icon="code" href="/connector-dev/low-code-cdk">
+    YAML-based declarative connector manifest. Same engine as the Builder but edited directly in a text editor or terminal.
+  </Card>
+  <Card title="Python CDK" icon="snake" href="/connector-dev/python-cdk/overview">
+    Full Python library for connectors that require custom logic, non-HTTP sources, or complex authentication flows.
+  </Card>
+</CardGroup>
+
+## When to use each path
+
+| Requirement | Connector Builder | Low-Code CDK | Python CDK |
+| --- | --- | --- | --- |
+| REST API returning JSON or JSONL | Yes | Yes | Yes |
+| No local dev environment needed | Yes (Airbyte Cloud) | No | No |
+| Standard auth (API key, OAuth 2.0, Basic) | Yes | Yes | Yes |
+| Custom or multi-step authentication | No | Limited | Yes |
+| Offset, page, or cursor pagination | Yes | Yes | Yes |
+| Custom pagination logic | No | Limited | Yes |
+| Incremental syncs with a cursor field | Yes | Yes | Yes |
+| Non-HTTP sources (databases, files) | No | No | Yes |
+| Destination connectors | No | No | Yes |
+| GraphQL | Yes (via HTTP) | Yes (via HTTP) | Yes |
+
+<Tip>
+Start with Connector Builder. If you encounter a limitation, export the YAML manifest and continue in the Low-Code CDK. Escalate to the Python CDK only when neither declarative option can handle your use case.
+</Tip>
+
+## Process overview
+
+<Steps>
+  <Step title="Pick the technology and build">
+    Choose your development path from the table above. For most API source connectors, start in Connector Builder.
+  </Step>
+  <Step title="Publish as a custom connector">
+    After building and testing, publish the connector to your workspace. This makes it available as a source in your Airbyte instance.
+  </Step>
+  <Step title="Contribute back to Airbyte (optional)">
+    If you want the connector available in the public Marketplace, follow the [connector submission guide](/connector-dev/submit).
+  </Step>
+</Steps>
+
+## Prerequisites
+
+- Access to an Airbyte workspace (Cloud or self-hosted)
+- Credentials for the API you want to connect to
+- For Low-Code CDK and Python CDK: a local development environment with Python 3.9+
+- For Python CDK: `pip install airbyte-cdk`
+
+## Community-maintained CDKs
+
+Airbyte does not officially support these CDKs, but they are actively maintained by the community:
+
+- [TypeScript CDK](https://github.com/faros-ai/airbyte-connectors) — maintained by Faros.ai
+- [.NET CDK](https://github.com/mrhamburg/airbyte.cdk.dotnet) — maintained by the community

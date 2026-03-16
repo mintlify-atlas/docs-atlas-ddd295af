@@ -1,0 +1,94 @@
+---
+title: "Contributing to Airbyte"
+description: "How to report bugs, contribute code and connectors, and get involved with the Airbyte community."
+---
+
+Airbyte is an open-source project and welcomes contributions of all kinds — bug reports, code, new connectors, documentation improvements, and more.
+
+For full contribution guidelines, see the [Airbyte contributing documentation](https://docs.airbyte.io/contributing-to-airbyte).
+
+## Ways to contribute
+
+<CardGroup cols={2}>
+  <Card title="Report a bug" icon="bug" href="https://github.com/airbytehq/airbyte/issues/new?template=bug-report.md">
+    Open a GitHub issue with a description of the problem and steps to reproduce it.
+  </Card>
+  <Card title="Submit a connector" icon="plug" href="https://docs.airbyte.com/connector-development/">
+    Build a new source or destination connector using the Connector Builder or the Connector Development Kit (CDK).
+  </Card>
+  <Card title="Contribute code" icon="code" href="https://github.com/airbytehq/airbyte">
+    Fix bugs, implement features, or improve performance in the Airbyte platform.
+  </Card>
+  <Card title="Improve docs" icon="book" href="https://github.com/airbytehq/airbyte/tree/master/docs">
+    Fix typos, add missing content, or clarify existing documentation.
+  </Card>
+</CardGroup>
+
+## Good first issues
+
+If you're new to the codebase, look for issues labeled [`good first issue`](https://github.com/airbytehq/airbyte/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) on GitHub. These are scoped contributions that don't require deep knowledge of the codebase.
+
+## Development setup
+
+<Steps>
+  <Step title="Fork and clone the repository">
+    ```bash
+    git clone https://github.com/<your-username>/airbyte.git
+    cd airbyte
+    ```
+  </Step>
+  <Step title="Install dependencies">
+    Follow the setup instructions in the repository's `README.md` for the component you want to work on. The platform, connectors, and PyAirbyte each have their own setup steps.
+  </Step>
+  <Step title="Install pre-commit hooks">
+    Airbyte uses pre-commit hooks to enforce code style and catch common issues before commits.
+
+    ```bash
+    pip install pre-commit
+    pre-commit install
+    ```
+
+    Hooks run automatically on `git commit`. You can also run them manually:
+
+    ```bash
+    pre-commit run --all-files
+    ```
+  </Step>
+  <Step title="Make your changes">
+    Create a branch for your work:
+
+    ```bash
+    git checkout -b my-feature-or-fix
+    ```
+
+    Make your changes and write tests where applicable.
+  </Step>
+  <Step title="Open a pull request">
+    Push your branch and open a pull request against the `master` branch of the upstream repository. Fill in the PR template completely, including a description of the change and how to test it.
+  </Step>
+</Steps>
+
+## Pull request process
+
+- All PRs require at least one approval from a maintainer before merging.
+- CI checks must pass, including tests and linting.
+- Large or breaking changes should be discussed in an issue before implementation.
+- Keep PRs focused. One PR per logical change makes review faster.
+
+## Code style
+
+Airbyte uses linters and formatters enforced via pre-commit hooks. The specific tools vary by component:
+
+| Component | Tools |
+|---|---|
+| Python (connectors, PyAirbyte) | `ruff`, `mypy` |
+| Java (platform) | `checkstyle`, `spotbugs` |
+| TypeScript (frontend) | `eslint`, `prettier` |
+
+Run the pre-commit hooks before pushing to avoid CI failures.
+
+## Community
+
+- **GitHub Discussions**: Ask questions and share ideas at [github.com/airbytehq/airbyte/discussions](https://github.com/airbytehq/airbyte/discussions)
+- **Slack**: Join the Airbyte community Slack for real-time discussion with contributors and maintainers.
+- **Issue tracker**: Report bugs and track feature requests at [github.com/airbytehq/airbyte/issues](https://github.com/airbytehq/airbyte/issues)

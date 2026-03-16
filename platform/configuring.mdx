@@ -1,0 +1,147 @@
+---
+title: "Configuring Airbyte"
+description: "Environment variables and configuration options for self-managed Airbyte deployments."
+---
+
+<Note>
+  In most cases, you configure Airbyte by modifying your `values.yaml` file, which has a rich interface suitable for all integrations. This page documents the underlying environment variables that `values.yaml` maps to. Use it as a reference when you need fine-grained control or are troubleshooting specific settings.
+</Note>
+
+<Warning>
+  Variables marked as `alpha` are not intended for general use and may have undefined behavior.
+</Warning>
+
+## Core
+
+| Variable | Description |
+|----------|-------------|
+| `AIRBYTE_VERSION` | Defines the Airbyte deployment version. |
+| `SPEC_CACHE_BUCKET` | Bucket for caching connector specs. Immensely speeds up spec operations. |
+
+## Secrets
+
+| Variable | Description |
+|----------|-------------|
+| `SECRET_PERSISTENCE` | Secret persistence type. Options: `NONE` (default), `GOOGLE_SECRET_MANAGER`, `AWS_SECRET_MANAGER`, `VAULT`. |
+| `SECRET_STORE_GCP_PROJECT_ID` | GCP project to store secrets in. Alpha. |
+| `SECRET_STORE_GCP_CREDENTIALS` | JSON credentials for Google Secret Manager with read/write access. Alpha. |
+| `VAULT_ADDRESS` | Vault address for Hashicorp Vault integration. Alpha. |
+| `VAULT_PREFIX` | Vault path prefix, e.g. `kv/airbyte/`. Alpha. |
+| `VAULT_AUTH_TOKEN` | Token for Vault authentication. Alpha. |
+| `VAULT_AUTH_METHOD` | Vault authentication method. Currently only `token`. Alpha. |
+| `AWS_ACCESS_KEY` | AWS access key ID for AWS Secret Manager. |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret access key for AWS Secret Manager. |
+| `AWS_KMS_KEY_ARN` | Optional KMS encryption key ARN for AWS Secret Manager. |
+| `AWS_SECRET_MANAGER_SECRET_TAGS` | Tags for AWS Secret Manager writes, format: `key1=value1,key2=value2`. |
+
+## Database
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_USER` | Jobs database user. |
+| `DATABASE_PASSWORD` | Jobs database password. |
+| `DATABASE_URL` | Jobs database URL: `jdbc:postgresql://${HOST}:${PORT}/${DB}`. |
+| `JOBS_DATABASE_INITIALIZATION_TIMEOUT_MS` | Total time to wait for the jobs database to initialize (includes migrations). |
+| `CONFIG_DATABASE_USER` | Config database user. Defaults to `DATABASE_USER` if empty. |
+| `CONFIG_DATABASE_PASSWORD` | Config database password. Defaults to `DATABASE_PASSWORD` if empty. |
+| `CONFIG_DATABASE_URL` | Config database URL. Defaults to `DATABASE_URL` if empty. |
+| `RUN_DATABASE_MIGRATION_ON_STARTUP` | Whether the Bootloader should run migrations on startup. |
+
+## Airbyte services
+
+| Variable | Description |
+|----------|-------------|
+| `TEMPORAL_HOST` | URL where Temporal is hosted (include port). |
+| `INTERNAL_API_HOST` | URL where the Airbyte Server is hosted (include port). |
+| `AIRBYTE_URL` | URL the Airbyte web app is hosted at. Also used in notification links. |
+
+## Jobs
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SYNC_JOB_RETRIES_COMPLETE_FAILURES_MAX_SUCCESSIVE` | — | Max successive attempts with no data synced before failing. |
+| `SYNC_JOB_RETRIES_COMPLETE_FAILURES_MAX_TOTAL` | — | Max total attempts with no data synced before failing. |
+| `SYNC_JOB_RETRIES_PARTIAL_FAILURES_MAX_SUCCESSIVE` | — | Max successive attempts with partial data synced before failing. |
+| `SYNC_JOB_MAX_TIMEOUT_DAYS` | — | Number of days a sync job runs before timing out. |
+| `JOB_MAIN_CONTAINER_CPU_REQUEST` | none | Minimum CPU for job containers. |
+| `JOB_MAIN_CONTAINER_CPU_LIMIT` | none | Maximum CPU for job containers. |
+| `JOB_MAIN_CONTAINER_MEMORY_REQUEST` | none | Minimum RAM for job containers. |
+| `JOB_MAIN_CONTAINER_MEMORY_LIMIT` | none | Maximum RAM for job containers. |
+| `JOB_KUBE_TOLERATIONS` | — | Pod tolerations for job pods, separated by `;`. |
+| `JOB_KUBE_NODE_SELECTORS` | — | Node selectors for job pods, e.g. `key1=value1,key2=value2`. |
+| `JOB_KUBE_ANNOTATIONS` | — | Annotations for job pods, e.g. `key1=value1,key2=value2`. |
+| `JOB_KUBE_NAMESPACE` | — | Kubernetes namespace for job pods. |
+| `JOB_KUBE_MAIN_CONTAINER_IMAGE_PULL_POLICY` | — | Image pull policy for connector containers. |
+| `JOB_KUBE_MAIN_CONTAINER_IMAGE_PULL_SECRET` | — | Image pull secret for private connector images. |
+
+### Job-specific node selectors and annotations
+
+These override the default job settings for specific job types:
+
+| Variable | Description |
+|----------|-------------|
+| `SPEC_JOB_KUBE_NODE_SELECTORS` | Node selectors for spec jobs. |
+| `CHECK_JOB_KUBE_NODE_SELECTORS` | Node selectors for check jobs. |
+| `DISCOVER_JOB_KUBE_NODE_SELECTORS` | Node selectors for discover jobs. |
+| `SPEC_JOB_KUBE_ANNOTATIONS` | Annotations for spec jobs. |
+| `CHECK_JOB_KUBE_ANNOTATIONS` | Annotations for check jobs. |
+| `DISCOVER_JOB_KUBE_ANNOTATIONS` | Annotations for discover jobs. |
+
+## Connections
+
+| Variable | Description |
+|----------|-------------|
+| `MAX_FIELDS_PER_CONNECTION` | Maximum number of fields selectable per connection. |
+| `MAX_DAYS_OF_ONLY_FAILED_JOBS_BEFORE_CONNECTION_DISABLE` | Consecutive days of only failures before the connection is disabled. |
+| `MAX_FAILED_JOBS_IN_A_ROW_BEFORE_CONNECTION_DISABLE` | Consecutive failed jobs before the connection is disabled. |
+
+## Logging
+
+| Variable | Description |
+|----------|-------------|
+| `LOG_LEVEL` | Log level: `DEBUG`, `INFO` (default), `WARN`, `ERROR`. |
+| `GCS_LOG_BUCKET` | GCS bucket for log storage. |
+| `S3_BUCKET` | S3 bucket for log storage. |
+| `S3_REGION` | AWS region for the S3 log bucket. |
+| `S3_AWS_KEY` | Access key for the S3 log bucket. |
+| `S3_AWS_SECRET` | Secret key for the S3 log bucket. |
+| `S3_MINIO_ENDPOINT` | MinIO URL for log storage. |
+| `S3_PATH_STYLE_ACCESS` | Set to `true` when using MinIO. |
+
+## Monitoring
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUBLISH_METRICS` | `false` | Whether to publish metrics. |
+| `METRIC_CLIENT` | none | Metrics client: `datadog` or `otel`. |
+| `DD_AGENT_HOST` | none | Datadog agent host (when `METRIC_CLIENT=datadog`). |
+| `DD_AGENT_PORT` | none | Datadog agent port (when `METRIC_CLIENT=datadog`). |
+| `OTEL_COLLECTOR_ENDPOINT` | none | OTEL collector `ip:port` (when `METRIC_CLIENT=otel`). |
+
+## Worker
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_CHECK_WORKERS` | 5 | Maximum non-sync workers per Worker container. |
+| `MAX_SYNC_WORKERS` | 10 | Maximum sync workers per Worker container. |
+| `TEMPORAL_WORKER_PORTS` | 9001–9040 | Local ports the Worker pod uses to connect to job pods. |
+| `DISCOVER_REFRESH_WINDOW_MINUTES` | 1440 | Minimum minutes between automatic schema refreshes. Set to `0` to disable. |
+
+## Launcher
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WORKLOAD_LAUNCHER_PARALLELISM` | 10 | Number of jobs that can start concurrently. |
+
+## Data retention
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TEMPORAL_HISTORY_RETENTION_IN_DAYS` | 30 | Retention period for job history in Temporal. |
+
+## Server (Enterprise)
+
+| Variable | Description |
+|----------|-------------|
+| `AUDIT_LOGGING_ENABLED` | Enable audit logging. Set to `true` or `false`. Enterprise only. |
+| `STORAGE_BUCKET_AUDIT_LOGGING` | Blob storage bucket for audit logs. Required if `AUDIT_LOGGING_ENABLED=true`. |

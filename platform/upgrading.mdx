@@ -1,0 +1,171 @@
+---
+title: "Upgrading Airbyte"
+description: "How to upgrade Airbyte deployed with abctl or on Kubernetes using Helm."
+---
+
+Upgrades require temporarily turning off Airbyte. During upgrades, Airbyte will attempt to upgrade some connector versions according to these rules:
+
+1. If you are **not** using a connector, Airbyte upgrades it to the latest version.
+2. If you **are** using a connector, Airbyte does not upgrade it automatically, to avoid disrupting active pipelines. Upgrade specific connectors from the connector's settings page.
+
+<Note>
+  After upgrading, check individual connector versions from the **Settings → Connections** page and update connectors as needed.
+</Note>
+
+## Upgrade with abctl
+
+`abctl` manages local installations of Airbyte.
+
+Run the following command to upgrade to the latest version:
+
+```bash
+abctl local install
+```
+
+To check your current version:
+
+```bash
+abctl local status
+```
+
+### Upgrade abctl itself
+
+Occasionally you need to update `abctl` itself. This is separate from upgrading Airbyte — it only upgrades the command-line tool.
+
+<Tabs>
+  <Tab title="curl">
+    ```bash
+    curl -LsfS https://get.airbyte.com | bash -
+    ```
+
+    Verify the upgrade:
+
+    ```bash
+    abctl version
+    ```
+  </Tab>
+  <Tab title="Homebrew">
+    ```bash
+    brew upgrade abctl
+    ```
+
+    Verify the upgrade:
+
+    ```bash
+    abctl version
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```bash
+    go install github.com/airbytehq/abctl@latest
+    ```
+
+    Verify the upgrade:
+
+    ```bash
+    abctl version
+    ```
+  </Tab>
+  <Tab title="Linux (GitHub)">
+    <Steps>
+      <Step title="Check your architecture">
+        ```bash
+        uname -m
+        ```
+        `x86_64` → download `linux-amd64`. `aarch64` → download `linux-arm64`.
+      </Step>
+      <Step title="Download the release">
+        Download the latest release from the [abctl releases page](https://github.com/airbytehq/abctl/releases/latest).
+      </Step>
+      <Step title="Extract and install">
+        ```bash
+        tar -xvzf {name-of-file-downloaded.linux-*.tar.gz}
+        chmod +x abctl/abctl
+        sudo mv abctl /usr/local/bin
+        ```
+      </Step>
+      <Step title="Verify">
+        ```bash
+        abctl version
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Upgrade on Kubernetes with Helm
+
+Upgrade by updating your `values.yaml` file and redeploying Airbyte.
+
+<Steps>
+  <Step title="Check your current chart version">
+    ```bash
+    helm list -n <NAMESPACE>
+    ```
+  </Step>
+
+  <Step title="Review release notes">
+    Check the [GitHub releases](https://github.com/airbytehq/airbyte/releases) for available versions and any upgrade requirements. You can also browse available Helm chart versions at [Airbyte ArtifactHub](https://artifacthub.io/packages/helm/airbyte/airbyte).
+  </Step>
+
+  <Step title="Update values.yaml (if needed)">
+    In most cases, you only need to update `values.yaml` if you want to enable a new feature from the new version.
+  </Step>
+
+  <Step title="Run the upgrade">
+    <Tabs>
+      <Tab title="Helm chart V1">
+        ```bash
+        helm upgrade --install <RELEASE-NAME> airbyte/airbyte \
+          --values <VALUES.YAML> \
+          --version <HELM-APP-VERSION>
+        ```
+      </Tab>
+      <Tab title="Helm chart V2">
+        ```bash
+        helm upgrade airbyte airbyte-v2/airbyte \
+          --namespace airbyte-v2 \
+          --values ./values.yaml \
+          --version 2.x.x
+        ```
+      </Tab>
+    </Tabs>
+
+    After about 5 minutes, Helm prints port-forward instructions:
+
+    ```bash
+    echo "Visit http://127.0.0.1:8080 to use your application"
+    kubectl -n airbyte port-forward deployment/airbyte-server 8080:8001
+    ```
+  </Step>
+</Steps>
+
+## Upgrade Self-Managed Enterprise
+
+<Steps>
+  <Step title="Update the Helm repository">
+    ```bash
+    helm repo update
+    ```
+  </Step>
+
+  <Step title="Re-install Airbyte Self-Managed Enterprise">
+    <Tabs>
+      <Tab title="Helm chart V1">
+        ```bash
+        helm upgrade airbyte-enterprise airbyte/airbyte \
+          --namespace airbyte \
+          --values ./values.yaml
+        ```
+      </Tab>
+      <Tab title="Helm chart V2">
+        ```bash
+        helm upgrade airbyte airbyte-v2/airbyte \
+          --namespace airbyte-v2 \
+          --values ./values.yaml \
+          --version 2.x.x
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>

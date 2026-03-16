@@ -1,0 +1,145 @@
+---
+title: "BigQuery Destination"
+description: "Load data into Google BigQuery using batched standard inserts or GCS staging. Supports all Airbyte sync modes with automatic partitioning and clustering."
+---
+
+The BigQuery destination connector loads data from Airbyte into Google BigQuery. It supports two loading methods and all Airbyte sync modes, and outputs partitioned and clustered tables for efficient querying.
+
+## Prerequisites
+
+- A Google Cloud project with [BigQuery enabled](https://cloud.google.com/bigquery/docs/quickstarts/query-public-dataset-console).
+- A [BigQuery dataset](https://cloud.google.com/bigquery/docs/quickstarts/quickstart-web-ui#create_a_dataset) to sync data into. Queries can only reference datasets in the same physical location, so create datasets in the same region if you plan to join them.
+- A Google Cloud [Service Account](https://cloud.google.com/iam/docs/service-accounts) with the **BigQuery User** and **BigQuery Data Editor** roles.
+- The [Service Account Key in JSON format](https://cloud.google.com/iam/docs/creating-managing-service-account-keys).
+
+<Note>
+For Airbyte Cloud, the Service Account Key is required. For Airbyte Open Source, it is optional if the host has Application Default Credentials configured.
+</Note>
+
+## Setup guide
+
+<Steps>
+  <Step title="Choose a loading method">
+    <Tabs>
+      <Tab title="Batched Standard Inserts (default)">
+        The connector uses BigQuery's built-in conversion to upload INSERT statements as files, which are then loaded in batches. Staging files are managed by BigQuery and deleted automatically after loading.
+
+        This is the simplest and recommended loading method for most use cases.
+      </Tab>
+      <Tab title="GCS Staging">
+        For more control over staging file location and storage:
+
+        1. [Create a Cloud Storage bucket](https://cloud.google.com/storage/docs/creating-buckets) with Protection Tools set to `none` or `Object versioning`. The bucket must not have a retention policy.
+        2. [Create an HMAC key and access ID](https://cloud.google.com/storage/docs/authentication/managing-hmackeys#create).
+        3. Grant the **Storage Object Admin** role to the same Service Account used for BigQuery access.
+
+        <Warning>
+        The bucket must use Google-managed encryption. Customer-managed encryption keys (CMEK) are not supported.
+        </Warning>
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Set up the BigQuery destination in Airbyte">
+    In the Airbyte UI, go to **Destinations**, search for **BigQuery**, and create a new destination.
+
+    1. Enter the **Project ID**.
+    2. Select the **Dataset Location**. This cannot be changed after creation.
+    3. Enter the **Default Dataset ID**.
+    4. Select a **Loading Method** (Batched Standard Inserts or GCS Staging).
+    5. Enter the **Service Account Key JSON**.
+    6. (Optional) Set **Transformation Query Run Type**: `interactive` (runs immediately, counts toward concurrency quotas) or `batch` (runs when resources are available, no concurrency impact).
+    7. (Optional) Adjust the **Google BigQuery Client Chunk Size** (default: 15 MiB). Decrease if you experience networking or memory issues.
+    8. Click **Set up destination**.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="project_id" type="string" required>
+  Your Google Cloud Project ID.
+</ParamField>
+
+<ParamField path="dataset_location" type="string" required>
+  The geographic location of your BigQuery dataset. Cannot be changed after creation.
+</ParamField>
+
+<ParamField path="dataset_id" type="string" required>
+  The BigQuery Dataset ID where Airbyte will write data.
+</ParamField>
+
+<ParamField path="loading_method" type="object" required>
+  Loading method: `Standard Inserts` or `GCS Staging`. Standard Inserts is the default.
+</ParamField>
+
+<ParamField path="credentials_json" type="string">
+  The Service Account Key in JSON format. Required for Airbyte Cloud; optional for Open Source with Application Default Credentials.
+</ParamField>
+
+<ParamField path="transformation_priority" type="string">
+  Query priority for transformation jobs: `interactive` or `batch`. Default: `interactive`.
+</ParamField>
+
+<ParamField path="big_query_client_buffer_size_mb" type="integer">
+  BigQuery client chunk size in MiB. Default: `15`. Decrease to reduce memory usage at the cost of sync speed.
+</ParamField>
+
+<ParamField path="raw_data_dataset" type="string">
+  Schema name for Airbyte's internal raw tables. Default: `airbyte_internal`.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Full Refresh - Overwrite + Deduped | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## Output schema
+
+Each stream is written to its own final table. The table contains your stream's columns plus these Airbyte metadata fields:
+
+| Column | Description |
+| --- | --- |
+| `airbyte_raw_id` | UUID assigned by Airbyte to each processed record. |
+| `_airbyte_generation_id` | Identifies the sync generation that produced this record. |
+| `airbyte_extracted_at` | Timestamp when the event was pulled from the source. |
+| `_airbyte_meta` | Metadata about the record including any schema changes. |
+
+Final tables are **partitioned by `airbyte_extracted_at`** (daily) and **clustered by `airbyte_extracted_at` and the table's primary keys**.
+
+## Data type mapping
+
+| Airbyte type | BigQuery type |
+| --- | --- |
+| STRING | STRING |
+| STRING (BASE64) | STRING |
+| STRING (BIG_NUMBER) | STRING |
+| STRING (BIG_INTEGER) | STRING |
+| NUMBER | NUMERIC |
+| INTEGER | INT64 |
+| BOOLEAN | BOOL |
+| STRING (TIMESTAMP_WITH_TIMEZONE) | TIMESTAMP |
+| STRING (TIMESTAMP_WITHOUT_TIMEZONE) | DATETIME |
+| STRING (TIME_WITH_TIMEZONE) | STRING |
+| STRING (TIME_WITHOUT_TIMEZONE) | TIME |
+| DATE | DATE |
+| OBJECT | JSON |
+| ARRAY | JSON |
+
+## Naming conventions
+
+Airbyte converts any characters that are invalid in BigQuery identifiers to `_`. Namespaces that begin with `_` (which would be hidden in the BigQuery Explorer panel) are prefixed with `n`.
+
+## Namespace support
+
+This destination supports [namespaces](https://docs.airbyte.com/platform/using-airbyte/core-concepts/namespaces). The namespace maps to a BigQuery dataset.
+
+## Troubleshooting
+
+- **Permission errors**: Ensure the service account has both **BigQuery User** and **BigQuery Data Editor** roles.
+- **GCS staging HMAC errors**: Verify the HMAC key is created for the BigQuery service account and that the account has access to the GCS bucket.
+- **Dataset not found**: Verify the dataset exists in the project and the location matches your configuration.

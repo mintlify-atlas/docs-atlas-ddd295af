@@ -1,0 +1,229 @@
+---
+title: "Terraform Provider"
+description: "Manage Airbyte sources, destinations, and connections as code using the official Terraform provider."
+---
+
+The Airbyte Terraform provider lets you define and version-control your Airbyte configuration using [Terraform](https://www.terraform.io/). It is built on top of the [Airbyte API](https://reference.airbyte.com) and supports all sources, destinations, and connections available in Airbyte.
+
+## Documentation
+
+The authoritative reference for the Terraform provider lives on the [Terraform Registry](https://registry.terraform.io/providers/airbytehq/airbyte/latest/docs).
+
+<CardGroup cols={2}>
+  <Card title="Getting started guide" icon="rocket" href="https://registry.terraform.io/providers/airbytehq/airbyte/latest/docs/guides/getting_started">
+    Set up the provider and create your first source, destination, and connection.
+  </Card>
+  <Card title="Provider reference" icon="book" href="https://registry.terraform.io/providers/airbytehq/airbyte/latest/docs">
+    Provider configuration, authentication, and schema.
+  </Card>
+  <Card title="Resources and data sources" icon="database" href="https://registry.terraform.io/providers/airbytehq/airbyte/latest/docs/resources/source">
+    Full reference for all resources and data sources.
+  </Card>
+  <Card title="Migrating to v1.0" icon="arrow-up" href="https://registry.terraform.io/providers/airbytehq/airbyte/latest/docs/guides/v1_migration_guide">
+    Upgrade from typed connector-specific resources to the generic `airbyte_source` / `airbyte_destination` resources.
+  </Card>
+</CardGroup>
+
+## Provider installation
+
+Add the provider to your `terraform` block:
+
+```hcl
+terraform {
+  required_providers {
+    airbyte = {
+      source  = "airbytehq/airbyte"
+      version = "~> 1.0"
+    }
+  }
+}
+```
+
+Then run:
+
+```bash
+terraform init
+```
+
+## Authentication
+
+Configure the provider with your Airbyte credentials. For Airbyte Cloud, provide a `client_id` and `client_secret`. For self-managed deployments, you can use a `password` with the default `username`.
+
+```hcl
+provider "airbyte" {
+  client_id     = var.airbyte_client_id
+  client_secret = var.airbyte_client_secret
+}
+```
+
+<Tip>
+Store credentials in environment variables or a secrets manager. Do not hardcode them in your Terraform configuration files.
+</Tip>
+
+For instructions on obtaining API credentials, navigate to **Settings → API** in the Airbyte UI. See the [API reference](https://reference.airbyte.com/reference/getting-started) for full details.
+
+## Resources
+
+### `airbyte_source`
+
+Creates and manages a source connector.
+
+```hcl
+resource "airbyte_source" "stripe" {
+  name         = "Stripe Production"
+  workspace_id = var.workspace_id
+  definition_id = "e094cb9a-26de-4645-8761-65c0c425d1de" # Stripe
+
+  configuration = jsonencode({
+    account_id    = var.stripe_account_id
+    client_secret = var.stripe_secret_key
+    start_date    = "2023-01-01T00:00:00Z"
+  })
+}
+```
+
+### `airbyte_destination`
+
+Creates and manages a destination connector.
+
+```hcl
+resource "airbyte_destination" "snowflake" {
+  name         = "Snowflake Data Warehouse"
+  workspace_id = var.workspace_id
+  definition_id = "424892c4-daac-4491-b9d4-7c88be7def8a" # Snowflake
+
+  configuration = jsonencode({
+    host      = var.snowflake_host
+    role      = "AIRBYTE_ROLE"
+    warehouse = "AIRBYTE_WAREHOUSE"
+    database  = "AIRBYTE_DB"
+    schema    = "PUBLIC"
+    username  = var.snowflake_username
+    password  = var.snowflake_password
+  })
+}
+```
+
+### `airbyte_connection`
+
+Links a source to a destination and configures sync behavior.
+
+```hcl
+resource "airbyte_connection" "stripe_to_snowflake" {
+  name           = "Stripe → Snowflake"
+  source_id      = airbyte_source.stripe.source_id
+  destination_id = airbyte_destination.snowflake.destination_id
+
+  schedule = {
+    schedule_type   = "cron"
+    cron_expression = "0 0 * * *"
+  }
+
+  configurations = {
+    streams = [
+      {
+        name        = "customers"
+        sync_mode   = "incremental_append"
+        cursor_field = ["updated"]
+      },
+      {
+        name      = "charges"
+        sync_mode = "full_refresh_overwrite"
+      }
+    ]
+  }
+}
+```
+
+## Data sources
+
+Data sources let you read existing Airbyte resources into your Terraform state without managing them.
+
+```hcl
+data "airbyte_workspace" "default" {
+  workspace_id = var.workspace_id
+}
+
+output "workspace_name" {
+  value = data.airbyte_workspace.default.name
+}
+```
+
+## Complete example
+
+The following is a complete pipeline: a Stripe source syncing to a Snowflake destination on a daily schedule.
+
+```hcl
+terraform {
+  required_providers {
+    airbyte = {
+      source  = "airbytehq/airbyte"
+      version = "~> 1.0"
+    }
+  }
+}
+
+provider "airbyte" {
+  client_id     = var.airbyte_client_id
+  client_secret = var.airbyte_client_secret
+}
+
+resource "airbyte_source" "stripe" {
+  name          = "Stripe Production"
+  workspace_id  = var.workspace_id
+  definition_id = "e094cb9a-26de-4645-8761-65c0c425d1de"
+
+  configuration = jsonencode({
+    account_id    = var.stripe_account_id
+    client_secret = var.stripe_secret_key
+    start_date    = "2023-01-01T00:00:00Z"
+  })
+}
+
+resource "airbyte_destination" "snowflake" {
+  name          = "Snowflake Data Warehouse"
+  workspace_id  = var.workspace_id
+  definition_id = "424892c4-daac-4491-b9d4-7c88be7def8a"
+
+  configuration = jsonencode({
+    host      = var.snowflake_host
+    role      = "AIRBYTE_ROLE"
+    warehouse = "AIRBYTE_WAREHOUSE"
+    database  = "AIRBYTE_DB"
+    schema    = "PUBLIC"
+    username  = var.snowflake_username
+    password  = var.snowflake_password
+  })
+}
+
+resource "airbyte_connection" "stripe_to_snowflake" {
+  name           = "Stripe → Snowflake (daily)"
+  source_id      = airbyte_source.stripe.source_id
+  destination_id = airbyte_destination.snowflake.destination_id
+
+  schedule = {
+    schedule_type   = "cron"
+    cron_expression = "0 0 * * *"
+  }
+
+  configurations = {
+    streams = [
+      {
+        name        = "customers"
+        sync_mode   = "incremental_append"
+        cursor_field = ["updated"]
+      },
+      {
+        name      = "charges"
+        sync_mode = "full_refresh_overwrite"
+      }
+    ]
+  }
+}
+```
+
+## Additional resources
+
+- [Airbyte API reference](https://reference.airbyte.com) — the API that powers the Terraform provider
+- [API access configuration](https://reference.airbyte.com/reference/getting-started) — obtain credentials for the provider
+- [Pre-1.0 migration guide](https://registry.terraform.io/providers/airbytehq/airbyte/latest/docs/guides/v1_migration_guide) — reference for users on provider versions before 1.0

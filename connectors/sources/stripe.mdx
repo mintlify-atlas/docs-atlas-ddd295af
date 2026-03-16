@@ -1,0 +1,97 @@
+---
+title: "Stripe Source"
+description: "Extract payments, customers, subscriptions, invoices, charges, and events from Stripe using the Stripe API."
+---
+
+The Stripe source connector syncs data from your Stripe account. It supports incremental syncs using the Stripe Events API, and uses cursor-based replication for streams not covered by the Events API.
+
+## Prerequisites
+
+- Access to a Stripe account.
+- A Stripe **Account ID** (begins with `acct_`, found in account settings).
+- A Stripe **Restricted API Key** with Read privileges.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create a restricted Stripe API key">
+    1. Log into your [Stripe Dashboard](https://dashboard.stripe.com/login).
+    2. In the top navigation bar, click **Developers**, then **API keys**.
+    3. Click **+ Create restricted key**.
+    4. Name the key and select **Read** for all available permissions.
+    5. Click **Create key** and copy the generated key.
+  </Step>
+
+  <Step title="Set up the Stripe connector in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **Stripe**, and create a new source.
+
+    1. Enter your **Account ID** (starts with `acct_`).
+    2. Enter the **Secret Key** (restricted key from the previous step).
+    3. Set a **Replication Start Date** in `YYYY-MM-DDTHH:mm:ssZ` format.
+    4. Configure optional settings as needed.
+    5. Click **Set up source**.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="account_id" type="string" required>
+  Your Stripe Account ID. Starts with `acct_`. Found in the top-right corner of your [Stripe account settings](https://dashboard.stripe.com/settings/account).
+</ParamField>
+
+<ParamField path="client_secret" type="string" required>
+  Stripe Restricted API Key with Read privileges.
+</ParamField>
+
+<ParamField path="start_date" type="string" required>
+  UTC datetime in `YYYY-MM-DDTHH:mm:ssZ` format. Data added on or after this date is replicated.
+</ParamField>
+
+<ParamField path="lookback_window_days" type="integer">
+  Number of days to re-read from the present day. Useful for post-transaction adjustments. Applies to streams that do not use event-based incremental sync. Default: `0`.
+</ParamField>
+
+<ParamField path="slice_range" type="integer">
+  Time window in days for each API request. Larger values are faster but risk more data re-sync if interrupted. Default: `365`.
+</ParamField>
+
+<ParamField path="api_retention_streams" type="array">
+  List of streams for which cursor age is validated against Stripe's 30-day Events API retention period. When a stream's cursor is older than 30 days, the connector performs a full refresh. By default, no streams are selected.
+</ParamField>
+
+<ParamField path="num_workers" type="integer">
+  Number of concurrent worker threads. Default: `10`. Range: 2–100.
+</ParamField>
+
+<ParamField path="max_requests_per_second" type="integer">
+  Maximum API requests per second. Defaults to 25 for test/sandbox keys and 100 for live keys.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh | Yes |
+| Incremental | Yes |
+
+## Available streams
+
+All streams support Incremental sync unless noted. Streams marked with (created) use the `created` field as the cursor; all others use an `updated` field.
+
+`accounts`, `application_fees`, `application_fee_refunds`, `authorizations`, `balance_transactions` (created), `bank_accounts`, `cardholders`, `cards`, `charges`, `checkout_sessions`, `checkout_sessions_line_items`, `coupons`, `credit_notes`, `customer_balance_transactions` (created), `customers`, `disputes`, `early_fraud_warnings`, `events` (created), `external_account_bank_accounts`, `external_account_cards`, `file_links` (created), `files` (created), `invoice_items`, `invoice_line_items`, `invoices`, `payment_intents`, `payment_methods`, `payouts`, `payout_balance_transactions`, `persons`, `plans`, `prices`, `products`, `promotion_codes`, `refunds`, `reviews`, `setup_attempts` (created), `setup_intents`, `shipping_rates` (created), `subscription_items`, `subscription_schedules`, `subscriptions`, `top_ups`, `transactions`, `transfer_reversals` (created), `transfers`, `usage_records`
+
+## Stripe API version
+
+This connector uses Stripe API version `2022-11-15`. Data is shaped according to this version regardless of the version configured in your Stripe dashboard.
+
+## Incremental deletes
+
+For the following streams, deleted records are marked with `is_deleted=true`:
+
+`bank_accounts`, `coupons`, `customers`, `external_account_bank_accounts`, `external_account_cards`, `invoices`, `invoice_items`, `persons`, `plans`, `prices`, `products`, `subscriptions`
+
+## Known limitations
+
+- **Events API retention**: Stripe guarantees access to events only for the last 30 days. Using **Full Refresh - Overwrite** will delete events older than 30 days from your destination. Use Append mode to preserve historical events.
+- **Cursor age validation**: If a stream's cursor is older than 30 days and the stream is in the `api_retention_streams` list, the connector performs a full refresh for that stream. This prevents data loss from stale cursors.
+- **Rate limits**: The connector handles Stripe's rate limits automatically and retries on throttling. Creating multiple connections may help distribute load.

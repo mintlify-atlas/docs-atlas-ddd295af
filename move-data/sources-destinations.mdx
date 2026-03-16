@@ -1,0 +1,96 @@
+---
+title: "Sources and Destinations"
+description: "Learn what sources and destinations are in Airbyte and how to add and configure them."
+---
+
+In Airbyte, you move data from **sources** to **destinations** using **connectors**. These connectors form **connections**, which sync your data on a schedule.
+
+## Sources
+
+A **source** is the database, API, or other system from which you sync data. Examples include PostgreSQL, Salesforce, Stripe, GitHub, and Google Analytics.
+
+## Destinations
+
+A **destination** is the data warehouse, data lake, database, or operational tool to which you sync data. Examples include Snowflake, BigQuery, Redshift, S3, and Salesforce.
+
+## Connectors
+
+A **connector** is the software component Airbyte uses to interact with a source or destination. Airbyte provides over 600 connectors. Nearly all are open source.
+
+Connectors have different support levels:
+
+- **Generally Available:** Built and maintained by Airbyte. Highest reliability.
+- **Beta:** Functional but may have edge cases. Airbyte is actively improving them.
+- **Community:** Contributed by the open source community. Maintained by contributors.
+
+If you do not find a connector you need, you can build one using the no-code [Connector Builder](https://docs.airbyte.com/connector-development/connector-builder-ui/overview) or a Connector Development Kit (CDK).
+
+## Add a source
+
+<Steps>
+  <Step title="Open the Sources page">
+    Click **Sources** in the left navigation.
+  </Step>
+
+  <Step title="Search for a connector">
+    Click **New source**. Use the search bar to find the connector for your source system.
+  </Step>
+
+  <Step title="Configure the connector">
+    Fill in the required fields for the connector. These vary by connector but typically include:
+
+    - Hostname or endpoint URL
+    - Authentication credentials (username/password, API key, OAuth)
+    - Database or schema name
+    - Any source-specific options (e.g., replication method, start date)
+  </Step>
+
+  <Step title="Test and save">
+    Click **Set up source**. Airbyte tests the connection. If the test passes, the source is saved and ready to use in connections.
+  </Step>
+</Steps>
+
+## Add a destination
+
+<Steps>
+  <Step title="Open the Destinations page">
+    Click **Destinations** in the left navigation.
+  </Step>
+
+  <Step title="Search for a connector">
+    Click **New destination**. Use the search bar to find the connector for your destination system.
+  </Step>
+
+  <Step title="Configure the connector">
+    Fill in the required fields. These vary by connector but typically include:
+
+    - Hostname or endpoint
+    - Authentication credentials
+    - Target database, schema, or bucket
+    - Optional settings such as data loading method or file format
+  </Step>
+
+  <Step title="Test and save">
+    Click **Set up destination**. Airbyte tests the connection. If the test passes, the destination is saved.
+  </Step>
+</Steps>
+
+## Credential management
+
+Airbyte stores all credentials encrypted. You can update credentials at any time by opening the source or destination and editing the configuration.
+
+For sensitive credentials, Airbyte supports:
+
+- **Direct entry:** Credentials are entered in the UI and stored in Airbyte's encrypted secrets store.
+- **OAuth:** For supported connectors, you can authenticate with OAuth rather than entering credentials manually.
+- **External secret managers:** Self-hosted deployments can integrate with AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault, and Azure Key Vault to store secrets outside of Airbyte.
+
+## Managing existing sources and destinations
+
+You can view, edit, and delete sources and destinations from their respective pages in the UI.
+
+<Warning>
+  Deleting a source or destination also deletes any connections that use it. This action cannot be undone.
+</Warning>
+
+To see which connections use a source or destination, open it and review the **Connections** tab.

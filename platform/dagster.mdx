@@ -1,0 +1,81 @@
+---
+title: "Orchestrate with Dagster"
+description: "Trigger Airbyte sync jobs from Dagster using the official dagster-airbyte integration."
+---
+
+Airbyte is an official integration in the Dagster project. The `dagster-airbyte` package lets you trigger Airbyte sync jobs and model Airbyte connections as Dagster software-defined assets.
+
+## Prerequisites
+
+- A running Airbyte self-managed instance
+- Dagster installed — see the [Dagster getting started guide](https://docs.dagster.io/getting-started)
+- Your Airbyte connection's **sync frequency** set to **manual** (Dagster will trigger it)
+
+## Install the package
+
+```bash
+pip install dagster-airbyte
+```
+
+Full API documentation: [Dagster Airbyte library](https://docs.dagster.io/_apidocs/libraries/dagster-airbyte).
+
+## Create a job
+
+Create a file `airbyte_dagster.py`:
+
+```python
+from dagster import job
+from dagster_airbyte import airbyte_resource, airbyte_sync_op
+
+# Configure the Airbyte resource
+my_airbyte_resource = airbyte_resource.configured(
+    {
+        "host": {"env": "AIRBYTE_HOST"},
+        "port": {"env": "AIRBYTE_PORT"},
+    }
+)
+
+# Configure the sync op with your connection ID
+sync_foobar = airbyte_sync_op.configured(
+    {"connection_id": "your-connection-uuid"},
+    name="sync_foobar"
+)
+
+@job(resource_defs={"airbyte": my_airbyte_resource})
+def my_simple_airbyte_job():
+    sync_foobar()
+```
+
+Run the job:
+
+```bash
+dagster job execute -f airbyte_dagster.py
+```
+
+## Resource parameters
+
+The `airbyte_resource` accepts the following configuration:
+
+| Parameter | Description |
+|-----------|-------------|
+| `host` | Host URL of your Airbyte instance. |
+| `port` | Port for your Airbyte instance. |
+| `use_https` | Set to `true` if your server uses HTTPS. |
+| `request_max_retries` | Maximum number of API request retries before failing. |
+| `request_retry_delay` | Seconds to wait between retries. |
+
+## Op parameters
+
+The `airbyte_sync_op` accepts the following configuration:
+
+| Parameter | Description |
+|-----------|-------------|
+| `connection_id` | UUID of the Airbyte connection to trigger. |
+| `poll_interval` | Seconds to wait between successive status polls. |
+| `poll_timeout` | Maximum seconds to wait before timing out. |
+
+## Related resources
+
+- [Dagster Airbyte library documentation](https://docs.dagster.io/_apidocs/libraries/dagster-airbyte)
+- [Dynamically configuring Airbyte using dagster-airbyte](https://airbyte.com/tutorials/configure-airbyte-with-python-dagster)
+- [Build an e-commerce analytics stack with Airbyte, dbt, Dagster, and BigQuery](https://github.com/airbytehq/quickstarts/tree/main/ecommerce_analytics_bigquery)

@@ -1,122 +1,199 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Airbyte",
+  "theme": "maple",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#5d59e6",
+    "light": "#aca4e2",
+    "dark": "#0c0c34"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/3ac11b14-ce92-401f-8506-e0b2dc4c1da6.png",
+  "logo": {
+    "light": "https://media.brand.dev/d31a2c8c-ecd3-4fec-800e-fad03ad76d2a.svg",
+    "dark": "https://media.brand.dev/f660a1ea-6ba1-49cf-a084-b8be128dd015.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/airbytehq/airbyte"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/airbytehq/airbyte"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Get Started",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Overview",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Deploy Airbyte",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "deploy/overview",
+              "deploy/abctl",
+              "deploy/kubernetes",
+              "deploy/docker-compose",
+              "deploy/cloud"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Move Data",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "move-data/connections",
+              "move-data/sources-destinations",
+              "move-data/sync-modes",
+              "move-data/change-data-capture"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Connectors",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Connector Catalog",
             "pages": [
-              "api-reference/introduction"
+              "connectors/overview",
+              "connectors/support-levels"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Popular Sources",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "connectors/sources/postgres",
+              "connectors/sources/mysql",
+              "connectors/sources/github",
+              "connectors/sources/salesforce",
+              "connectors/sources/hubspot",
+              "connectors/sources/stripe",
+              "connectors/sources/google-sheets",
+              "connectors/sources/s3"
+            ]
+          },
+          {
+            "group": "Popular Destinations",
+            "pages": [
+              "connectors/destinations/bigquery",
+              "connectors/destinations/snowflake",
+              "connectors/destinations/redshift",
+              "connectors/destinations/postgres",
+              "connectors/destinations/s3"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Build Connectors",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "connector-dev/overview",
+              "connector-dev/connector-builder",
+              "connector-dev/low-code-cdk"
+            ]
+          },
+          {
+            "group": "Connector Builder",
+            "pages": [
+              "connector-dev/builder/getting-started",
+              "connector-dev/builder/streams",
+              "connector-dev/builder/authentication",
+              "connector-dev/builder/pagination",
+              "connector-dev/builder/incremental-sync"
+            ]
+          },
+          {
+            "group": "Python CDK",
+            "pages": [
+              "connector-dev/python-cdk/overview",
+              "connector-dev/python-cdk/source",
+              "connector-dev/python-cdk/testing"
+            ]
+          },
+          {
+            "group": "Publish & Certify",
+            "pages": [
+              "connector-dev/submit",
+              "connector-dev/best-practices"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Platform",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": [
+              "platform/architecture",
+              "platform/tech-stack",
+              "platform/protocol"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "platform/scaling",
+              "platform/monitoring",
+              "platform/upgrading",
+              "platform/configuring"
+            ]
+          },
+          {
+            "group": "Security & Access",
+            "pages": [
+              "platform/access-management",
+              "platform/secrets",
+              "platform/enterprise"
+            ]
+          },
+          {
+            "group": "Orchestration",
+            "pages": [
+              "platform/airflow",
+              "platform/prefect",
+              "platform/dagster"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developers",
+        "groups": [
+          {
+            "group": "API & SDKs",
+            "pages": [
+              "developers/api-overview",
+              "developers/pyairbyte",
+              "developers/terraform"
+            ]
+          },
+          {
+            "group": "AI & MCP",
+            "pages": [
+              "developers/ai-overview",
+              "developers/mcp-server"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "developers/contributing",
+              "developers/license"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,95 @@
+---
+title: "Python CDK overview"
+description: "Build fully custom Airbyte source connectors using the Python CDK for HTTP APIs, databases, and any other data source."
+---
+
+The Airbyte Python CDK is a Python library for building production-grade source connectors. Use it when the [Connector Builder](/connector-dev/connector-builder) or [Low-Code CDK](/connector-dev/low-code-cdk) cannot handle your use case.
+
+## When to use the Python CDK
+
+| Use case | Recommended tool |
+| --- | --- |
+| Standard REST API with JSON responses | Connector Builder |
+| REST API with minor customizations | Low-Code CDK |
+| Non-HTTP source (database, file system, message queue) | **Python CDK** |
+| Custom or multi-step authentication | **Python CDK** |
+| Complex business logic in record transformation | **Python CDK** |
+| Destination connector | **Python CDK** |
+| GraphQL with complex query generation | **Python CDK** |
+
+## Installation
+
+```bash
+pip install airbyte-cdk
+```
+
+For development, install with extras:
+
+```bash
+pip install airbyte-cdk[dev]
+```
+
+## Project structure
+
+A Python CDK connector follows this directory layout:
+
+```
+source_<name>/
+├── __init__.py
+├── source.py          # AbstractSource subclass
+├── streams.py         # Stream subclasses
+├── spec.yaml          # Connector configuration schema
+└── schemas/
+    ├── users.json     # JSON Schema for the users stream
+    └── orders.json    # JSON Schema for the orders stream
+
+unit_tests/
+├── __init__.py
+└── test_streams.py
+
+integration_tests/
+├── __init__.py
+├── acceptance.py
+└── configured_catalog.json
+
+acceptance-test-config.yml
+metadata.yaml
+main.py                # Entrypoint
+```
+
+## Core concepts
+
+The Airbyte protocol requires every source to support four operations:
+
+| Operation | Description |
+| --- | --- |
+| `spec` | Returns the configuration schema shown to end users |
+| `check` | Validates that the provided configuration can connect to the source |
+| `discover` | Returns the catalog of available streams |
+| `read` | Reads records from the source and emits them as `AirbyteRecordMessage` objects |
+
+The Python CDK implements these operations through two main abstractions:
+
+- **`AbstractSource`** — base class for a connector; implements `check`, `discover`, and `read` by delegating to a list of `Stream` objects
+- **`Stream`** (or **`HttpStream`**) — represents one resource in the source; defines the schema and how to read records
+
+## CDK reference documentation
+
+Full API reference documentation is published automatically with each CDK release:
+https://airbytehq.github.io/airbyte-python-cdk/airbyte_cdk.html
+
+## Source repository
+
+The Python CDK source code and contribution guide are hosted at:
+https://github.com/airbytehq/airbyte-python-cdk
+
+## Guides
+
+<CardGroup cols={2}>
+  <Card title="Building a source" href="/connector-dev/python-cdk/source">
+    Implement AbstractSource, define streams, and write records.
+  </Card>
+  <Card title="Testing your connector" href="/connector-dev/python-cdk/testing">
+    Run standard acceptance tests and write unit tests.
+  </Card>
+</CardGroup>

@@ -1,0 +1,154 @@
+---
+title: "Redshift Destination"
+description: "Load data into Amazon Redshift by staging files in S3 and using COPY commands. Supports all Airbyte sync modes."
+---
+
+The Redshift destination connector loads data from Airbyte into Amazon Redshift. It stages data in an S3 bucket and issues COPY commands to load it into Redshift—the recommended loading pattern described in [AWS Redshift best practices](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-single-copy-command.html).
+
+## Prerequisites
+
+- An active Amazon Redshift cluster.
+- An S3 bucket in the same AWS region as your Redshift cluster (cross-region transfers incur networking costs).
+- An IAM user or role with read/write permissions on the S3 staging bucket.
+- A Redshift database user with permissions to create schemas and tables.
+
+## Setup guide
+
+<Steps>
+  <Step title="Set up Redshift">
+    1. Log into the [AWS Management Console](https://aws.amazon.com/console/) and go to the Redshift service.
+    2. Create or use an existing Redshift cluster.
+    3. [Create an S3 staging bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html). Place it in the same region as your cluster.
+    4. (Optional) Allow connections from Airbyte to your cluster if it is in a separate VPC.
+  </Step>
+
+  <Step title="Grant Redshift permissions">
+    Airbyte writes to two schemas: your target schema and `airbyte_internal` (for internal raw tables). Run the following SQL to grant required permissions:
+
+    ```sql
+    GRANT CREATE ON DATABASE database_name TO airbyte_user;
+    GRANT USAGE, CREATE ON SCHEMA my_schema TO airbyte_user;
+    GRANT SELECT ON TABLE SVV_TABLE_INFO TO airbyte_user;
+    ```
+  </Step>
+
+  <Step title="Set up the Redshift destination in Airbyte">
+    In the Airbyte UI, go to **Destinations**, search for **Redshift**, and create a new destination.
+
+    Fill in the required fields and click **Set up destination**.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="host" type="string" required>
+  The Redshift cluster hostname.
+</ParamField>
+
+<ParamField path="port" type="integer" required>
+  The cluster port. Default: `5439`.
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  The database name within the cluster.
+</ParamField>
+
+<ParamField path="schema" type="string" required>
+  The default schema for writing data.
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The Redshift username.
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  The Redshift password.
+</ParamField>
+
+<ParamField path="s3_bucket_name" type="string" required>
+  The S3 bucket name used for staging data.
+</ParamField>
+
+<ParamField path="s3_bucket_region" type="string" required>
+  The AWS region of the S3 bucket. Place this in the same region as your Redshift cluster.
+</ParamField>
+
+<ParamField path="access_key_id" type="string" required>
+  AWS Access Key ID with read/write permissions on the staging bucket.
+</ParamField>
+
+<ParamField path="secret_access_key" type="string" required>
+  AWS Secret Access Key corresponding to the Access Key ID.
+</ParamField>
+
+<ParamField path="bucket_path" type="string">
+  Subdirectory within the S3 bucket for staging data. Defaults to the root.
+</ParamField>
+
+<ParamField path="s3_filename_pattern" type="string">
+  Pattern for staging filenames. Supported placeholders: `{date}`, `{date:yyyy_MM}`, `{timestamp}`, `{timestamp:millis}`, `{timestamp:micros}`, `{part_number}`, `{sync_id}`, `{format_extension}`.
+</ParamField>
+
+<ParamField path="purge_staging_data" type="boolean">
+  Whether to delete staging files from S3 after the COPY command completes. Default: `true`.
+</ParamField>
+
+<ParamField path="tunnel_method" type="object">
+  SSH Bastion Host configuration for connecting through an intermediate server.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Full Refresh - Overwrite + Deduped | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## Output schema
+
+Each stream is written to its own table in your target schema. Each table contains:
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `_airbyte_raw_id` | VARCHAR | UUID assigned by Airbyte to each processed record. |
+| `_airbyte_extracted_at` | TIMESTAMP WITH TIME ZONE | When the event was pulled from the source. |
+| `_airbyte_loaded_at` | TIMESTAMP WITH TIME ZONE | When the row was processed into the final table. |
+| `_airbyte_data` | SUPER | JSON blob with the event data. |
+| `_airbyte_meta` | SUPER | Metadata about the record including schema changes. |
+| `_airbyte_generation_id` | BIGINT | Identifier for the sync generation. |
+
+## Data type mapping
+
+| Airbyte type | Redshift type |
+| --- | --- |
+| STRING | VARCHAR |
+| NUMBER | DECIMAL / NUMERIC |
+| INTEGER | BIGINT / INT8 |
+| BOOLEAN | BOOLEAN / BOOL |
+| STRING (TIMESTAMP_WITH_TIMEZONE) | TIMESTAMPTZ |
+| STRING (TIMESTAMP_WITHOUT_TIMEZONE) | TIMESTAMP |
+| STRING (TIME_WITH_TIMEZONE) | TIMETZ |
+| STRING (TIME_WITHOUT_TIMEZONE) | TIME |
+| DATE | DATE |
+| OBJECT | SUPER |
+| ARRAY | SUPER |
+
+## Data size limitations
+
+- Maximum raw JSON record: **16 MB**.
+- Maximum VARCHAR field within a JSON record: **65,535 bytes**.
+
+When a record exceeds these limits:
+- Fields larger than 65,535 bytes are nulled (recorded in `_airbyte_meta`).
+- Records larger than 16 MB have all non-PK, non-cursor fields nulled.
+
+## SSH Bastion Host
+
+The connector supports connecting to Redshift through an SSH bastion host. The bastion is used only for the SQL connection—S3 staging uses public HTTPS access only.
+
+## Namespace support
+
+This destination supports [namespaces](https://docs.airbyte.com/platform/using-airbyte/core-concepts/namespaces). The namespace maps to a Redshift schema.

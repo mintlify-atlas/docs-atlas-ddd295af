@@ -1,0 +1,72 @@
+---
+title: "Airbyte Cloud"
+description: "Use Airbyte's fully managed cloud service to move data without managing infrastructure."
+---
+
+Airbyte Cloud is a fully managed version of Airbyte hosted by Airbyte, Inc. You get all the power of the Airbyte platform—600+ connectors, flexible sync modes, CDC support—without running or maintaining any infrastructure.
+
+## Benefits
+
+- **No infrastructure to operate.** Airbyte manages Kubernetes, upgrades, scaling, and reliability.
+- **Automatic upgrades.** You always run the latest version of Airbyte with no manual upgrade steps.
+- **Data residency options.** Choose which cloud region processes and temporarily stores your data.
+- **Consumption-based pricing.** Pay for the data you move, not for idle infrastructure.
+- **Enterprise SLAs.** Guaranteed uptime and support response times for qualifying plans.
+
+## Getting started
+
+<Steps>
+  <Step title="Create an account">
+    Go to [cloud.airbyte.com](https://cloud.airbyte.com) and sign up for a free account. You can sign up with Google, GitHub, or an email address.
+  </Step>
+
+  <Step title="Set up your workspace">
+    After signing in, Airbyte creates a default workspace for you. A workspace is an isolated environment that contains your sources, destinations, and connections.
+
+    You can rename your workspace or create additional workspaces from the workspace selector in the top navigation.
+  </Step>
+
+  <Step title="Add a source">
+    Click **Sources** in the left navigation, then click **New source**. Search for the connector you need, fill in the required credentials, and click **Set up source**.
+
+    Airbyte Cloud supports the full catalog of 600+ connectors. Credentials are encrypted at rest.
+  </Step>
+
+  <Step title="Add a destination">
+    Click **Destinations** in the left navigation, then click **New destination**. Select your destination connector, provide the connection details, and click **Set up destination**.
+  </Step>
+
+  <Step title="Create a connection and sync">
+    Click **Connections**, then **New connection**. Select your source and destination, configure streams and sync modes, set a schedule, and click **Set up connection**.
+
+    Click **Sync now** to run your first sync immediately.
+  </Step>
+</Steps>
+
+## Data residency
+
+Airbyte Cloud lets you choose the cloud region where your data is processed. This helps you meet data sovereignty and compliance requirements.
+
+You can configure data residency at the workspace level. Available regions are listed in your workspace settings under **Data residency**.
+
+<Info>
+  Data residency controls where data is temporarily staged during a sync. Source and destination credentials are always stored encrypted in Airbyte's secure secrets manager.
+</Info>
+
+## Workspace and team management
+
+- **Multiple workspaces:** Organize your connections by team, environment (dev/staging/prod), or business unit.
+- **Role-based access control:** Invite team members and assign roles (Admin, Editor, Viewer) at the workspace level.
+- **SSO:** Enterprise plans support single sign-on via OIDC-compatible identity providers.
+
+## Cloud vs self-hosted
+
+| | Airbyte Cloud | Self-Hosted |
+|---|---|---|
+| Infrastructure | Managed by Airbyte | Managed by you |
+| Upgrades | Automatic | Manual |
+| Data residency | Configurable by region | Your environment |
+| Custom connectors | Yes | Yes |
+| SSO | Enterprise plans | Enterprise license |
+
+If you need to keep data entirely within your own environment, see the [self-hosted deployment options](/deploy/overview).

@@ -1,0 +1,96 @@
+---
+title: "Sync Modes"
+description: "Understand Full Refresh and Incremental sync modes and choose the right one for each stream."
+---
+
+The sync mode controls how Airbyte reads data from the source and writes it to the destination. You configure a sync mode per stream. Choosing the right mode depends on the nature of your data and how you want to track changes.
+
+## Available sync modes
+
+| Sync mode | Source behavior | Destination behavior | Use case |
+|---|---|---|---|
+| Full Refresh — Overwrite | Reads all records every sync | Replaces all data in the destination | Small tables, lookup tables, data that changes completely |
+| Full Refresh — Append | Reads all records every sync | Appends all records to the destination | Audit logs, snapshots over time |
+| Incremental — Append | Reads only new or updated records since the last sync | Appends new records to the destination | Event streams, append-only data |
+| Incremental — Append + Deduped | Reads only new or updated records since the last sync | Appends records, then deduplicates by primary key | Most transactional data (orders, users, etc.) |
+
+## Full Refresh
+
+In Full Refresh, Airbyte reads all records from the source on every sync.
+
+### Full Refresh — Overwrite
+
+Airbyte replaces all data in the destination table with the data from the current sync. The destination always reflects the current state of the source.
+
+**When to use it:**
+- The source dataset is small and cheap to re-read.
+- Data in the destination should exactly mirror the source at all times.
+- The stream has no meaningful cursor or primary key.
+
+**Trade-offs:**
+- No history of deleted records.
+- Can be expensive for large tables because all data is re-read and re-written every sync.
+
+### Full Refresh — Append
+
+Airbyte reads all records from the source and appends them to the destination. Each sync adds a full copy of the source data as new rows.
+
+**When to use it:**
+- You want point-in-time snapshots of the full dataset.
+- You need a historical record of how data looked at different points in time.
+
+**Trade-offs:**
+- The destination table grows with every sync. You must manage retention.
+
+## Incremental
+
+In Incremental mode, Airbyte tracks a **cursor** (typically a timestamp or auto-incrementing ID) and only reads records that are new or updated since the last sync. This is more efficient than Full Refresh for large datasets.
+
+### Incremental — Append
+
+Airbyte reads new or updated records and appends them to the destination. Existing rows are never modified.
+
+**When to use it:**
+- The source is append-only (events, logs, immutable records).
+- You want to capture every change as a separate row in the destination.
+
+**Trade-offs:**
+- If records are updated at the source, both the original and the updated record exist in the destination. Querying the latest state requires deduplication logic.
+
+### Incremental — Append + Deduped
+
+Airbyte reads new or updated records, appends them, and then deduplicates the destination table using the stream's primary key. The destination reflects the latest state of each record.
+
+**When to use it:**
+- The source data changes over time (e.g., order status updates, user profile changes).
+- You want the destination to reflect the current state of the source without duplicates.
+- This is the recommended mode for most transactional data.
+
+**Trade-offs:**
+- Requires a primary key on the stream. Airbyte uses it to identify which existing row to update or replace.
+- Deduplication adds processing overhead in the destination.
+
+## Choosing a sync mode
+
+<Tip>
+  For most production use cases involving mutable data (users, orders, products), use **Incremental — Append + Deduped**. It is efficient and keeps the destination in sync with the source without duplicates.
+</Tip>
+
+Use the following as a guide:
+
+1. **Can the source track changes incrementally?** (Does it have a cursor field like `updated_at` or `id`?)
+   - Yes → Use an Incremental mode.
+   - No → Use Full Refresh.
+
+2. **Do you need to see every version of a record over time?**
+   - Yes → Use an Append variant.
+   - No → Use Overwrite (Full Refresh) or Append + Deduped (Incremental).
+
+3. **Does the destination table need to be an exact current mirror of the source?**
+   - Yes → Use Full Refresh — Overwrite or Incremental — Append + Deduped.
+
+## CDC and incremental sync
+
+For databases that support it, Airbyte can use Change Data Capture (CDC) as the mechanism for incremental replication. CDC reads changes directly from the database's transaction log rather than polling for updated rows. This is more efficient and captures deletes.
+
+See [Change Data Capture](/move-data/change-data-capture) for details.

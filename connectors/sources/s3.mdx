@@ -1,0 +1,165 @@
+---
+title: "S3 Source"
+description: "Read CSV, Parquet, Avro, and JSONL files from Amazon S3 buckets. Supports public buckets and private buckets with IAM User or IAM Role authentication."
+---
+
+The S3 source connector reads files stored in Amazon S3 buckets. You define streams based on file patterns, and the connector infers schemas from the file contents. It supports CSV, Parquet, Avro, and JSONL formats, as well as common compression types.
+
+<Warning>
+Using cloud storage may incur egress costs when data is transferred out of S3. See the [AWS S3 pricing guide](https://aws.amazon.com/s3/pricing/) for details.
+</Warning>
+
+## Prerequisites
+
+- Access to the S3 bucket containing the files to replicate.
+- For **private buckets**: An AWS account with permissions to read from the bucket (via IAM User credentials or IAM Role ARN).
+
+## Setup guide
+
+<Steps>
+  <Step title="Create an IAM policy">
+    For private buckets, create an IAM policy with the following permissions (substitute your bucket name):
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:GetObject", "s3:ListBucket"],
+          "Resource": [
+            "arn:aws:s3:::{your-bucket-name}/*",
+            "arn:aws:s3:::{your-bucket-name}"
+          ]
+        }
+      ]
+    }
+    ```
+
+    <Note>
+    Object-level permissions alone are not sufficient. You must include bucket-level permissions (`s3:ListBucket`).
+    </Note>
+  </Step>
+
+  <Step title="Configure authentication">
+    <Tabs>
+      <Tab title="IAM User">
+        1. In the IAM console, create a user and attach the policy.
+        2. Generate an **Access Key ID** and **Secret Access Key** under Security credentials.
+        3. Store the Secret Access Key securely—it is only shown once.
+      </Tab>
+      <Tab title="IAM Role (most secure)">
+        <Note>
+        IAM Role authentication requires enabling by the Airbyte team for Airbyte Cloud. Contact sales for more information. IAM Role is not supported on the OSS platform.
+        </Note>
+
+        1. Create an IAM Role with the policy attached.
+        2. Configure a trust relationship allowing Airbyte's AWS account to assume the role.
+        3. Set the External ID to your Airbyte workspace ID.
+        4. Note the Role ARN.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Set up the S3 connector in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **S3**, and create a new source.
+
+    1. Enter the **Bucket** name.
+    2. Add a stream:
+       - Choose a **File Format** (CSV, Parquet, Avro, JSONL).
+       - Give the stream a **Name**.
+       - (Optional) Enter **Globs** to pattern-match specific files (e.g., `**/*.csv` for all CSV files).
+       - (Optional) Configure an **Input schema** if you want to enforce a specific schema.
+    3. Enter authentication credentials (Access Key ID + Secret, or Role ARN).
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="bucket" type="string" required>
+  The name of the S3 bucket.
+</ParamField>
+
+<ParamField path="aws_access_key_id" type="string">
+  AWS Access Key ID. Required for IAM User authentication.
+</ParamField>
+
+<ParamField path="aws_secret_access_key" type="string">
+  AWS Secret Access Key. Required for IAM User authentication.
+</ParamField>
+
+<ParamField path="role_arn" type="string">
+  AWS IAM Role ARN for STS Assume Role authentication.
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  Custom S3-compatible endpoint URL. Leave empty for AWS S3.
+</ParamField>
+
+<ParamField path="region_name" type="string">
+  AWS region code (e.g., `us-east-1`).
+</ParamField>
+
+<ParamField path="start_date" type="string">
+  UTC datetime. Files not modified since this date are not replicated.
+</ParamField>
+
+<ParamField path="streams" type="array" required>
+  One or more stream configurations, each with a name, file format, and optional glob patterns.
+</ParamField>
+
+## Supported sync modes
+
+| Feature | Supported |
+| --- | --- |
+| Full Refresh | Yes |
+| Incremental | Yes |
+| Incremental Deletes | No |
+| Multiple files via pattern matching | Yes |
+| Multiple streams | Yes |
+
+## Supported file formats
+
+| Format | Notes |
+| --- | --- |
+| CSV | Configurable delimiter, encoding, quoting, and header options. |
+| Parquet | Column-oriented format. Optional decimal-to-float conversion. |
+| Avro | Uses Fastavro. Optional double-to-string conversion. |
+| JSONL | One JSON object per line. |
+| Document (experimental) | Extracts text from PDF, Word, PowerPoint, Markdown, and TXT files. |
+
+## Supported compressions
+
+| Compression | Supported |
+| --- | --- |
+| Gzip | Yes |
+| Zip | Yes |
+| Bzip2 | Yes |
+| Lzma | No |
+| Xz | No |
+| Snappy | No |
+
+## Glob patterns
+
+Use glob patterns to match multiple files:
+
+| Pattern | Matches |
+| --- | --- |
+| `**` | All files in the bucket |
+| `**/*.csv` | All CSV files |
+| `myFolder/**/*.csv` | All CSV files under `myFolder` |
+| `**/prefix*.parquet` | All Parquet files with a given prefix |
+
+Multiple patterns can be separated with `|`.
+
+## Schema inference
+
+By default, schema is inferred from the first (oldest) file found. Starting with version 2.0.0, only the first file is used for inference (not all files). All CSV columns are inferred as strings unless you provide an explicit schema.
+
+To provide a custom schema, supply a JSON object in the format `{"column": "datatype"}` where datatypes are: `string`, `number`, `integer`, `object`, `array`, `boolean`, `null`.
+
+## Known limitations
+
+- Incremental sync tracks up to 10,000 files in history. When history is full, only files modified after the oldest tracked date minus `Days To Sync If History Is Full` are re-synced.
+- Large files (over 1.5 GB) may cause memory issues.
+- Schema is inferred from only the first file found; future files with different schemas may cause type conflicts.

@@ -1,0 +1,78 @@
+---
+title: "Scaling Airbyte"
+description: "How to scale Airbyte's workers, database, and Kubernetes cluster to handle large workloads."
+---
+
+Airbyte is made up of several components: Scheduler, Server, Temporal, and Database. These perform control-plane operations that are low-scale, low-resource work. You would only encounter scaling issues when running over a thousand connections.
+
+As a reference point, the typical Airbyte user has 5–20 connectors and 10–100 connections configured, mostly scheduled hourly or daily, resulting in at most 100 concurrent jobs.
+
+## What to scale
+
+[Workloads](https://docs.airbyte.com/understanding-airbyte/jobs) do all the heavy lifting within Airbyte. The workload system is responsible for launching pods that execute Airbyte operations (Discover, Read, Sync, etc.).
+
+The Workload Launcher creates one Kubernetes pod per job. The connector and sidecar images do the actual work inside that pod.
+
+Scaling Airbyte means ensuring that the Kubernetes cluster has sufficient resources to schedule its various job pods.
+
+<Tip>
+  Start with a mid-sized cloud instance (4 or 8 cores) and gradually tune instance size to your workload. Most users never need to go beyond this.
+</Tip>
+
+## Memory
+
+Within a sync job, the main memory consumer is the Source worker. The Source worker reads up to 10,000 records in memory. This can present problems for database sources with large row sizes.
+
+**Example:** A table with an average row size of 0.5 MB requires:
+
+```
+0.5 MB × 10,000 records / 1,000 = 5 GB of RAM
+```
+
+To increase available memory for syncs, configure connector resource limits. See [Configuring Airbyte](/platform/configuring) for the relevant environment variables (`JOB_MAIN_CONTAINER_MEMORY_REQUEST`, `JOB_MAIN_CONTAINER_MEMORY_LIMIT`).
+
+## Disk space
+
+Airbyte uses backpressure to minimize disk usage. However, disk can become a concern because:
+
+1. Long-running syncs produce a fair amount of logs.
+2. Connector Docker images are ~300 MB each. A deployment with many connectors can easily use 10 GB of disk.
+
+<Warning>
+  Allocate a minimum of **30 GB of disk space per node**. Over-provisioning storage is inexpensive and prevents unexpected failures.
+</Warning>
+
+## Kubernetes pod capacity
+
+Users running Airbyte on Kubernetes must ensure the cluster can accommodate the pods Airbyte creates.
+
+For sync jobs, Airbyte uses two workers per connection — one reads from the source, the other writes to the destination. To be safe:
+
+```
+Required pod capacity = 2 × <number of possible concurrent connections>
+```
+
+## Temporal database connections
+
+Temporal maintains multiple idle database connections. The default value is `20`, and Temporal creates multiple pools — so the effective number of connections can be 4–5 times higher than expected.
+
+Relevant environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `SQL_MAX_IDLE_CONNS` | Maximum number of idle connections. |
+| `SQL_MAX_CONNS` | Maximum total connections. `SQL_MAX_IDLE_CONNS` is capped by this value. |
+
+<Note>
+  If you increase `SQL_MAX_IDLE_CONNS`, you must also increase `SQL_MAX_CONNS`, because idle connections are capped by the total connection limit.
+</Note>
+
+## Worker concurrency
+
+You can tune worker concurrency with the following environment variables (see [Configuring Airbyte](/platform/configuring)):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_SYNC_WORKERS` | 10 | Maximum number of sync workers per Worker container. |
+| `MAX_CHECK_WORKERS` | 5 | Maximum number of non-sync workers per Worker container. |
+| `WORKLOAD_LAUNCHER_PARALLELISM` | 10 | Number of jobs that can be started concurrently by the Launcher. |

@@ -1,0 +1,121 @@
+---
+title: "Change Data Capture (CDC)"
+description: "Use CDC to replicate database changes in real time by reading from transaction logs instead of polling rows."
+---
+
+Change Data Capture (CDC) is a technique for capturing database changes—inserts, updates, and deletes—by reading from the database's transaction log rather than scanning rows with a cursor query. CDC is more efficient and more accurate than standard cursor-based incremental replication for databases that produce a high volume of changes.
+
+## How CDC works in Airbyte
+
+Airbyte implements CDC using [Debezium](https://debezium.io/), an open source CDC framework. Debezium connects to the database's replication log (WAL for Postgres, binlog for MySQL, etc.) and streams change events to Airbyte.
+
+**First sync (initial snapshot):**
+The first time a CDC-enabled connection runs, Airbyte takes a full snapshot of the current state of the data using a `SELECT` statement—similar to a Full Refresh. Subsequent syncs use the log to capture only what changed.
+
+**Subsequent syncs:**
+Airbyte reads from the log position it last recorded, capturing all `INSERT`, `UPDATE`, and `DELETE` events since the previous sync. This means you get deletes, which are not possible with cursor-based incremental replication.
+
+**Sync scheduling:**
+CDC sources are not treated as infinite streaming sources. Syncs run on a schedule. You must ensure your sync frequency is shorter than your database's log retention period to avoid losing log position.
+
+## CDC metadata columns
+
+For CDC-enabled streams, Airbyte adds metadata columns prefixed with `_ab_cdc_`:
+
+| Column | Description |
+|---|---|
+| `_ab_cdc_lsn` or `_ab_cdc_cursor` | The log position (LSN) where the record was captured. |
+| `_ab_cdc_updated_at` | Timestamp of the database transaction that produced the change. Present for INSERT, UPDATE, and DELETE events. |
+| `_ab_cdc_deleted_at` | Timestamp of the delete transaction. Present only for DELETE events. |
+| `_ab_cdc_log_file` / `_ab_cdc_log_pos` | MySQL-specific. The binlog file name and position. |
+
+The final destination table does not show records whose most recent operation was a delete, since those rows have a non-null `_ab_cdc_deleted_at`.
+
+## Supported databases
+
+| Database | Notes |
+|---|---|
+| [PostgreSQL](https://docs.airbyte.com/integrations/sources/postgres) | Uses the Write-Ahead Log (WAL). Requires `wal_level = logical`. |
+| [MySQL](https://docs.airbyte.com/integrations/sources/mysql) | Uses the binary log (binlog). Requires `binlog_format = ROW`. |
+| [Microsoft SQL Server (MSSQL)](https://docs.airbyte.com/integrations/sources/mssql) | Uses SQL Server CDC. Requires CDC to be enabled on the database and tables. |
+| [MongoDB](https://docs.airbyte.com/integrations/sources/mongodb-v2) | Uses MongoDB change streams (requires a replica set). |
+| Oracle DB | Enterprise connector. |
+| SAP HANA | Enterprise connector. |
+| IBM Db2 | Enterprise connector. |
+
+## When to use CDC
+
+Use CDC when:
+
+- Your source database has a high volume of updates or deletes.
+- You need to capture deletes (cursor-based incremental replication cannot detect deleted rows).
+- You want near real-time replication with low overhead on the source database.
+- Your source database supports it (see the table above).
+
+Do not use CDC when:
+
+- Your source is a view rather than a table. CDC only works with tables.
+- The changes you care about are made via `TRUNCATE` or `ALTER`—these do not appear in transaction logs.
+- Your table has no primary key and you need incremental replication. In this case, configure the table as Full Refresh instead.
+
+## Limitations
+
+- CDC incremental replication requires tables to have primary keys. Tables without primary keys can still be synced using Full Refresh.
+- Data must be in tables, not views.
+- Changes made via `TRUNCATE` or `ALTER` are not captured.
+- Newly added tables or columns require a snapshot (refresh) before CDC begins tracking them.
+- There are database-specific limitations. See the individual connector documentation for details.
+
+## Adding new tables or columns
+
+When you add a new table or column to a CDC-enabled source:
+
+1. In the connection's **Schema** tab, click **Refresh source schema** to detect the new objects.
+2. Review and approve the schema changes.
+3. Enable the new streams or columns.
+4. Trigger a stream refresh:
+   - For new tables: find the table in the Status page, click the three-dot menu (⋮), and choose **Refresh Stream**.
+   - For new columns: find the table containing the new column, click ⋮, and choose **Refresh Stream**.
+
+<Warning>
+  Adding new schemas or columns does not automatically enable CDC tracking on them. Verify that CDC is configured at the database level for any new objects. Refer to your database's documentation for the specific commands.
+</Warning>
+
+<Tip>
+  To prevent sync issues from unreviewed schema changes, enable **Approve all schema changes myself** under the connection's **Settings** → **Detect and propagate schema changes**. This prevents newly detected changes from being included in syncs without a proper snapshot.
+</Tip>
+
+## Best practices
+
+### WAL retention period
+
+Configure your database to retain transaction logs long enough to cover gaps between syncs.
+
+| Sync frequency | Minimum retention | Recommended retention |
+|---|---|---|
+| Every 1–4 hours | 1–2 days | 7 days |
+| Once daily | 2–3 days | 7 days |
+| Every 3 days | 4–5 days | 7 days |
+
+### Sync frequency
+
+Your sync schedule must be shorter than the log retention period. If Airbyte's last recorded log position is recycled before the next sync, the connection must re-snapshot the entire database.
+
+### Invalid CDC position
+
+If the log position becomes invalid (for example, due to WAL recycling), Airbyte can either automatically re-snapshot the database or fail the sync and wait for manual intervention.
+
+| Environment | Recommendation | Reason |
+|---|---|---|
+| Production / large databases | Fail Sync | Prevents unexpected resource consumption and cost from re-snapshots |
+| Development / small datasets | Either | Re-snapshots are fast and inexpensive |
+
+### Initial load timeout
+
+The snapshot phase has a configurable timeout. For large databases, increase this value to ensure the snapshot completes before CDC streaming begins.
+
+| Database size | Recommended timeout |
+|---|---|
+| Small to medium | 8 hours (default) |
+| Large | 12–24 hours |
+| Very large (> 50 GB) | 24 hours |

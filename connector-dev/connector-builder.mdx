@@ -1,0 +1,70 @@
+---
+title: "Connector Builder"
+description: "Build source connectors for REST APIs using a no-code UI directly in the Airbyte web app."
+---
+
+Connector Builder is a no-code tool built into the Airbyte UI. It provides an intuitive interface on top of the [low-code YAML format](/connector-dev/low-code-cdk), letting you build and test a source connector without leaving your Airbyte workspace.
+
+## What Connector Builder does
+
+Connector Builder generates a YAML manifest behind the scenes as you fill out forms. Every form field maps directly to a declarative component in the low-code CDK. You can switch between the visual UI and direct YAML editing at any time, or export the manifest to continue in a text editor.
+
+## Supported API types
+
+- **REST APIs** returning JSON or JSONL responses
+- **GraphQL** APIs (queries sent as HTTP POST requests)
+- APIs behind standard authentication: API key, Bearer token, Basic HTTP, OAuth 2.0, JWT, Session token
+- APIs with pagination: offset, page number, cursor, or link-header based
+- APIs that support incremental sync via a cursor field (e.g. `updated_at`)
+
+<Warning>
+Connector Builder is for **source** connectors only. Destination connectors are not supported.
+</Warning>
+
+## Accessing the Builder
+
+1. Open your Airbyte workspace in a browser.
+2. Click **Builder** in the left-hand navigation sidebar.
+3. Select **Start from scratch** to create a new project, or open an existing one.
+
+<Note>
+If you installed Airbyte using `abctl` with `--low-resource-mode`, the Builder is disabled. Remove that flag and redeploy with Airbyte's [suggested resources](https://docs.airbyte.com/platform/using-airbyte/getting-started/oss-quickstart#suggested-resources) to enable it.
+</Note>
+
+## How a connector is structured
+
+A Builder project contains three main sections:
+
+- **Global Configuration** — settings that apply to all streams, such as which streams to use for the connection check and API budget/rate limiting.
+- **Inputs** — user-facing configuration fields (API keys, base URLs, date ranges) that end users fill in when they set up a source.
+- **Streams** — one entry per API resource. Each stream defines the endpoint URL, HTTP method, authentication, pagination, incremental sync, and how to extract records from the response.
+
+## Contributing a connector
+
+Once your connector is working, you can share it with the Airbyte community directly from the Builder:
+
+1. Click **Publish** → **Contribute to Marketplace**.
+2. Add a connector description and provide a GitHub Personal Access Token (PAT) with `workflow` scope.
+3. Click **Contribute**. The Builder opens a pull request on your behalf.
+
+Reviews from the Airbyte Marketplace team typically take under a week.
+
+## Detailed topics
+
+<CardGroup cols={2}>
+  <Card title="Getting started" href="/connector-dev/builder/getting-started">
+    Step-by-step walkthrough: create a project, configure a stream, and test against a live API.
+  </Card>
+  <Card title="Defining streams" href="/connector-dev/builder/streams">
+    Set the endpoint URL, HTTP method, and record selector for each stream.
+  </Card>
+  <Card title="Authentication" href="/connector-dev/builder/authentication">
+    Configure API key, Bearer, Basic, OAuth 2.0, JWT, or Session token authentication.
+  </Card>
+  <Card title="Pagination" href="/connector-dev/builder/pagination">
+    Handle offset, page-increment, cursor, and link-header pagination.
+  </Card>
+  <Card title="Incremental sync" href="/connector-dev/builder/incremental-sync">
+    Sync only new or updated records using a cursor field.
+  </Card>
+</CardGroup>

@@ -1,0 +1,117 @@
+---
+title: "Orchestrate with Apache Airflow"
+description: "Trigger Airbyte sync jobs from Apache Airflow DAGs using the official airbyte provider package."
+---
+
+Airbyte is an official community provider for Apache Airflow. The Airbyte Airflow Operator allows you to trigger Airbyte self-managed sync jobs from Airflow DAGs.
+
+<Note>
+  The Airbyte Airflow Operator is designed to work with the internal Config API of self-managed Airbyte. It is not intended for orchestrating Airbyte Cloud. To orchestrate Airbyte Cloud with Airflow, use [Airflow's HTTP operators](https://airflow.apache.org/docs/apache-airflow-providers-http/stable/operators.html) with the public Airbyte API.
+</Note>
+
+## Prerequisites
+
+- A running Airbyte self-managed instance
+- Apache Airflow installed with the `apache-airflow-providers-airbyte` package
+- An Airbyte connection with **sync frequency** set to **manual** (Airflow will trigger it)
+
+## Install the provider
+
+```bash
+pip install apache-airflow-providers-airbyte
+```
+
+For full documentation, see the [Airflow Airbyte provider docs](https://airflow.apache.org/docs/apache-airflow-providers-airbyte/stable/index.html).
+
+## Set up an Airflow connection
+
+<Steps>
+  <Step title="Open Airflow connections">
+    Navigate to **Admin** > **Connections** in the Airflow UI at `http://localhost:8080/`.
+  </Step>
+  <Step title="Create an HTTP connection">
+    Create a new connection of type **HTTP**. Set the host to your Airbyte instance URL (e.g. `localhost`) and port to `8001`.
+  </Step>
+  <Step title="Get your Airbyte connection ID">
+    In Airbyte, go to **Connections** > your connection. The connection ID appears in the URL:
+    ```
+    https://<YOUR_DOMAIN>/workspaces/<WORKSPACE_ID>/connections/<CONNECTION_ID>/status
+    ```
+  </Step>
+</Steps>
+
+## Create a DAG
+
+### Synchronous (blocking)
+
+The operator blocks the Airflow task until the Airbyte sync completes:
+
+```python
+from airflow import DAG
+from airflow.utils.dates import days_ago
+from airflow.providers.airbyte.operators.airbyte import AirbyteTriggerSyncOperator
+
+with DAG(
+    dag_id='trigger_airbyte_job_example',
+    default_args={'owner': 'airflow'},
+    schedule_interval='@daily',
+    start_date=days_ago(1),
+) as dag:
+
+    sync_task = AirbyteTriggerSyncOperator(
+        task_id='airbyte_sync_example',
+        airbyte_conn_id='airbyte_conn_example',  # Name of the Airflow HTTP connection
+        connection_id='1e3b5a72-7bfd-4808-a13c-204505490110',  # Airbyte connection ID
+        asynchronous=False,
+        timeout=3600,
+        wait_seconds=3,
+    )
+```
+
+### Asynchronous (sensor-based)
+
+Use `asynchronous=True` to avoid occupying an Airflow worker slot while waiting for the sync:
+
+```python
+from airflow import DAG
+from airflow.utils.dates import days_ago
+from airflow.providers.airbyte.operators.airbyte import AirbyteTriggerSyncOperator
+from airflow.providers.airbyte.sensors.airbyte import AirbyteJobSensor
+
+with DAG(
+    dag_id='airbyte_trigger_job_example_async',
+    default_args={'owner': 'airflow'},
+    schedule_interval='@daily',
+    start_date=days_ago(1),
+) as dag:
+
+    trigger_sync = AirbyteTriggerSyncOperator(
+        task_id='airbyte_async_trigger',
+        airbyte_conn_id='airbyte_conn_example',
+        connection_id='1e3b5a72-7bfd-4808-a13c-204505490110',
+        asynchronous=True,
+    )
+
+    wait_for_sync = AirbyteJobSensor(
+        task_id='airbyte_sensor',
+        airbyte_conn_id='airbyte_conn_example',
+        airbyte_job_id=trigger_sync.output,
+    )
+
+    trigger_sync >> wait_for_sync
+```
+
+## Operator parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `airbyte_conn_id` | Name of the Airflow HTTP connection pointing to the Airbyte API. |
+| `connection_id` | The ID of the Airbyte connection to trigger. |
+| `asynchronous` | When `True`, Airflow monitors the job via `AirbyteJobSensor` instead of blocking. Default: `False`. |
+| `timeout` | Maximum seconds to wait for completion (synchronous mode only). Default: `3600`. |
+| `wait_seconds` | Seconds to wait between polling checks (synchronous mode only). Default: `3`. |
+
+## Related resources
+
+- [Airflow Airbyte provider documentation](https://airflow.apache.org/docs/apache-airflow-providers-airbyte/stable/index.html)
+- [Build an e-commerce analytics stack with Airbyte, dbt, Airflow, and BigQuery](https://github.com/airbytehq/quickstarts/tree/main/airbyte_dbt_airflow_bigquery)

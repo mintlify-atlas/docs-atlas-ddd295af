@@ -1,0 +1,135 @@
+---
+title: "Postgres Destination"
+description: "Write data directly to PostgreSQL tables using Direct Load architecture. Supports all Airbyte sync modes with automatic schema evolution."
+---
+
+The Postgres destination connector writes data from Airbyte into PostgreSQL. Starting with version 3.0.0, the connector uses **Direct Load** architecture, writing directly to final tables without intermediate raw tables.
+
+<Warning>
+Postgres is not a data warehouse. It is recommended only for small data volumes (less than 10 GB) or for testing purposes. For larger datasets, consider BigQuery, Snowflake, or Redshift.
+</Warning>
+
+## Prerequisites
+
+- A PostgreSQL server version 9.5 or later.
+- A database user with permissions to create tables and schemas.
+- (Airbyte Cloud) SSL or TLS encryption is required. TLS is used by default.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create a Postgres user for Airbyte">
+    ```sql
+    CREATE USER airbyte_user WITH PASSWORD '<password>';
+    GRANT CREATE, TEMPORARY ON DATABASE <database> TO airbyte_user;
+    ```
+  </Step>
+
+  <Step title="Configure network access">
+    Ensure your Postgres instance is accessible from Airbyte. If the database is in a VPC, allow inbound connections from Airbyte's IP addresses.
+  </Step>
+
+  <Step title="Set up the Postgres destination in Airbyte">
+    In the Airbyte UI, go to **Destinations**, search for **Postgres**, and create a new destination.
+
+    1. Enter the **Host**, **Port**, and **DB Name**.
+    2. List the **Default Schemas**. The `public` schema is set by default.
+    3. Enter the **Username** and **Password**.
+    4. Select an **SSL Mode**.
+    5. (Optional) Configure **SSH Tunnel Method** if required.
+    6. Click **Set up destination**.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="host" type="string" required>
+  The hostname or IP address of the PostgreSQL server.
+</ParamField>
+
+<ParamField path="port" type="integer" required>
+  The port number. Default: `5432`.
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  The database name.
+</ParamField>
+
+<ParamField path="schema" type="string" required>
+  The default schema. Default: `public`.
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The username for authentication.
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  The password for authentication.
+</ParamField>
+
+<ParamField path="ssl_mode" type="string">
+  SSL mode: `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`. Airbyte Cloud always requires encryption.
+</ParamField>
+
+<ParamField path="tunnel_method" type="object">
+  SSH tunnel configuration: `No Tunnel`, `SSH Key Authentication`, or `Password Authentication`.
+</ParamField>
+
+<ParamField path="jdbc_url_params" type="string">
+  Additional JDBC URL parameters as `key=value` pairs separated by `&`.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Full Refresh - Overwrite + Deduped | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## Output schema (Direct Load)
+
+Each stream is written directly to a final table in the configured schema. The table includes your data columns plus:
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `_airbyte_raw_id` | VARCHAR | UUID assigned by Airbyte to each processed record. |
+| `_airbyte_extracted_at` | TIMESTAMP WITH TIME ZONE | When the event was pulled from the source. |
+| `_airbyte_meta` | JSONB | Metadata about the record including sync information and schema changes. |
+| `_airbyte_generation_id` | BIGINT | Identifier for the sync generation. |
+
+## Data type mapping
+
+| Airbyte type | Postgres type |
+| --- | --- |
+| string | VARCHAR |
+| number | DECIMAL |
+| integer | BIGINT |
+| boolean | BOOLEAN |
+| object | JSONB |
+| array | JSONB |
+| timestamp_with_timezone | TIMESTAMP WITH TIME ZONE |
+| timestamp_without_timezone | TIMESTAMP |
+| time_with_timezone | TIME WITH TIME ZONE |
+| time_without_timezone | TIME |
+| date | DATE |
+
+## Naming conventions
+
+- Postgres restricts identifiers to **63 characters**. Longer column names are truncated.
+- If truncation results in a name collision, Airbyte modifies the names to avoid conflicts.
+- Final tables and columns use **quoted identifiers** (case-sensitive). Special characters are replaced with underscores.
+
+## Dependent objects
+
+If you create views or other objects that depend on Airbyte-managed tables, you must enable the **Drop tables with CASCADE** option. When Airbyte recreates tables, it will also drop dependent objects. You must have a way to recreate those objects (e.g., using dbt triggered by an orchestrator).
+
+<Warning>
+Enabling **Drop tables with CASCADE** can result in permanent data loss if dependent objects are not recreated. Understand the consequences before enabling this option.
+</Warning>
+
+## Namespace support
+
+This destination supports [namespaces](https://docs.airbyte.com/platform/using-airbyte/core-concepts/namespaces). The namespace maps to a Postgres schema.

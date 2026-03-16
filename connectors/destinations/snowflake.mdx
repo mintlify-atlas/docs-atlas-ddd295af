@@ -1,0 +1,182 @@
+---
+title: "Snowflake Destination"
+description: "Write data to Snowflake using internal staging. Supports all sync modes, automatic schema evolution, and key pair or username/password authentication."
+---
+
+The Snowflake destination connector loads data from Airbyte into Snowflake. It uses Snowflake's internal stage for efficient data loading and supports automatic schema evolution, CDC soft/hard deletes, and key pair authentication.
+
+## Prerequisites
+
+- A Snowflake account with the [ACCOUNTADMIN](https://docs.snowflake.com/en/user-guide/security-access-control-considerations.html) role (or an administrator who can create the required entities for you).
+
+## Setup guide
+
+<Steps>
+  <Step title="Create Airbyte-specific entities in Snowflake">
+    Run the following script in a [Snowflake worksheet](https://docs.snowflake.com/en/user-guide/ui-worksheet.html) to create a role, user, warehouse, and database for Airbyte:
+
+    ```sql
+    -- set variables (uppercase required)
+    set airbyte_role = 'AIRBYTE_ROLE';
+    set airbyte_username = 'AIRBYTE_USER';
+    set airbyte_warehouse = 'AIRBYTE_WAREHOUSE';
+    set airbyte_database = 'AIRBYTE_DATABASE';
+    set airbyte_schema = 'AIRBYTE_SCHEMA';
+    set airbyte_password = 'password'; -- change this
+
+    begin;
+
+    use role securityadmin;
+    create role if not exists identifier($airbyte_role);
+    grant role identifier($airbyte_role) to role SYSADMIN;
+
+    create user if not exists identifier($airbyte_username)
+      password = $airbyte_password
+      default_role = $airbyte_role
+      default_warehouse = $airbyte_warehouse;
+    grant role identifier($airbyte_role) to user identifier($airbyte_username);
+
+    use role sysadmin;
+
+    create warehouse if not exists identifier($airbyte_warehouse)
+      warehouse_size = xsmall
+      warehouse_type = standard
+      auto_suspend = 60
+      auto_resume = true
+      initially_suspended = true;
+
+    create database if not exists identifier($airbyte_database);
+
+    grant USAGE on warehouse identifier($airbyte_warehouse) to role identifier($airbyte_role);
+    grant OWNERSHIP on database identifier($airbyte_database) to role identifier($airbyte_role);
+
+    commit;
+    ```
+
+    <Note>
+    The connector automatically creates schemas in your database. The connection user must have `CREATE SCHEMA` privileges, or `OWNERSHIP` on any manually created schemas.
+    </Note>
+  </Step>
+
+  <Step title="Set up the Snowflake destination in Airbyte">
+    In the Airbyte UI, go to **Destinations**, search for **Snowflake**, and create a new destination.
+
+    Enter your connection details and choose an authentication method.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="host" type="string" required>
+  Snowflake account hostname. Must include account, region, and cloud environment, ending in `snowflakecomputing.com`. Example: `accountname.us-east-2.aws.snowflakecomputing.com`.
+</ParamField>
+
+<ParamField path="role" type="string" required>
+  The Snowflake role to use. Example: `AIRBYTE_ROLE`.
+</ParamField>
+
+<ParamField path="warehouse" type="string" required>
+  The Snowflake warehouse. Example: `AIRBYTE_WAREHOUSE`.
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  The Snowflake database. Example: `AIRBYTE_DATABASE`.
+</ParamField>
+
+<ParamField path="schema" type="string" required>
+  The default schema for the connection.
+</ParamField>
+
+<ParamField path="username" type="string" required>
+  The Snowflake username.
+</ParamField>
+
+<ParamField path="credentials" type="object" required>
+  Authentication: username/password or key pair. See [Key pair authentication](#key-pair-authentication).
+</ParamField>
+
+<ParamField path="cdc_deletion_mode" type="string">
+  How CDC deletions are applied: `hard_delete` (propagates deletes) or `soft_delete` (leaves a tombstone). Default: `hard_delete`.
+</ParamField>
+
+<ParamField path="raw_data_schema" type="string">
+  Schema for Airbyte's internal raw tables. Default: `airbyte_internal`.
+</ParamField>
+
+<ParamField path="data_retention_time_in_days" type="integer">
+  Snowflake Time Travel retention period in days. A nonzero value incurs storage costs. Default: `1`.
+</ParamField>
+
+<ParamField path="jdbc_url_params" type="string">
+  Additional JDBC URL parameters as `key=value` pairs separated by `&`.
+</ParamField>
+
+## Key pair authentication
+
+As an alternative to username/password, Snowflake supports RSA key pair authentication. To use it:
+
+1. Generate an RSA key pair.
+2. Assign the public key to the Snowflake user.
+3. Provide the private key (PEM format) in the connector configuration.
+
+See [Snowflake key pair authentication documentation](https://docs.snowflake.com/en/user-guide/key-pair-auth) for detailed instructions.
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Overwrite + Deduped | Yes |
+| Full Refresh - Append | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes |
+
+## Output schema
+
+Airbyte writes raw data to the `airbyte_internal` schema and final typed tables to your configured schema. The final table includes your stream columns plus:
+
+| Column | Description |
+| --- | --- |
+| `_AIRBYTE_RAW_ID` | UUID for each processed record. |
+| `_AIRBYTE_GENERATION_ID` | Identifies the sync generation. |
+| `_AIRBYTE_EXTRACTED_AT` | Timestamp when data was pulled from source. |
+| `_AIRBYTE_LOADED_AT` | Timestamp when the row was processed into the final table. |
+| `_AIRBYTE_META` | Metadata including schema changes and error information. |
+
+## Data type mapping
+
+| Airbyte type | Snowflake type |
+| --- | --- |
+| STRING | TEXT |
+| NUMBER | FLOAT |
+| INTEGER | NUMBER |
+| BOOLEAN | BOOLEAN |
+| STRING (TIMESTAMP_WITH_TIMEZONE) | TIMESTAMP_TZ |
+| STRING (TIMESTAMP_WITHOUT_TIMEZONE) | TIMESTAMP_NTZ |
+| STRING (TIME_WITHOUT_TIMEZONE) | TIME |
+| DATE | DATE |
+| OBJECT | OBJECT |
+| ARRAY | ARRAY |
+| UNION | VARIANT |
+| UNKNOWN | VARIANT |
+
+### Size limits
+
+- **VARCHAR**: Maximum 16 MB (UTF-8 encoded). Values exceeding this limit are nulled.
+- **VARIANT**: Maximum 128 MB. Values exceeding this limit are nulled.
+- **FLOAT**: Standard 64-bit. Values out of range are nulled.
+- **NUMBER (INTEGER)**: Maximum 38 digits. Excessive precision is rounded.
+
+All truncations and nullifications are recorded in `_AIRBYTE_META`.
+
+## Schema evolution
+
+This connector supports automatic schema evolution. When the source schema changes, the connector automatically adds new columns, drops removed columns, and modifies column types. The `ALTER TABLE` privilege on destination tables is required.
+
+## Namespace support
+
+This destination supports [namespaces](https://docs.airbyte.com/platform/using-airbyte/core-concepts/namespaces). The namespace maps to a Snowflake schema.
+
+## Troubleshooting
+
+- **"Current role does not have permissions on the target schema"**: Ensure the Snowflake destination schema is one that the configured role has access to. If using **Mirror source structure** for the destination namespace, switch to **Destination Default** or grant the role permissions on the target schema.

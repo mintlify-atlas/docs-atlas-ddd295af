@@ -1,0 +1,124 @@
+---
+title: "Salesforce Source"
+description: "Pull CRM objects, custom objects, and permissions data from Salesforce using the Bulk API and REST API."
+---
+
+The Salesforce source connector syncs Standard Objects, Custom Objects, and security-related objects from Salesforce. The connector uses the Bulk API by default for large datasets and automatically falls back to the REST API when needed.
+
+## Prerequisites
+
+- A [Salesforce account](https://login.salesforce.com/) with Enterprise edition **or** Professional edition with API access purchased as an add-on.
+- **Airbyte Cloud**: Salesforce OAuth credentials.
+- **Airbyte Open Source**: Salesforce OAuth credentials (Client ID, Client Secret, Refresh Token).
+- Optionally, a dedicated Salesforce user with the Minimum Access profile and read-only permission sets.
+
+## Setup guide
+
+<Steps>
+  <Step title="Create a dedicated Salesforce user (recommended)">
+    Creating a dedicated user with the Minimum Access standard profile gives you granular control over what data Airbyte can read.
+
+    1. In Salesforce Setup, go to **Administration > Users > Users** and create a new user.
+       - Leave `role` unspecified.
+       - Select `Salesforce` for User License.
+       - Select `Standard User` for Profile.
+    2. Create a Permission Set with read-only access to the objects you want to sync.
+       - Under **Object Settings**, grant `Read` permission to each target object.
+       - Under **System Permissions**, enable `Use Any API Client` (if API Access Control is enabled) or `Approve Uninstalled Connected Apps`.
+    3. Assign the Permission Set to the new user.
+  </Step>
+
+  <Step title="(Open Source only) Obtain OAuth credentials">
+    Follow the OAuth setup described in [Salesforce's documentation](https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_tokens_scopes.htm&type=5) to obtain:
+    - Client ID
+    - Client Secret
+    - Refresh Token
+  </Step>
+
+  <Step title="Set up the Salesforce connector in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **Salesforce**, and create a new source.
+
+    <Tabs>
+      <Tab title="Airbyte Cloud">
+        Click **Authenticate your account** to authorize via OAuth.
+      </Tab>
+      <Tab title="Airbyte Open Source">
+        Enter your Client ID, Client Secret, and Refresh Token.
+      </Tab>
+    </Tabs>
+
+    Configure additional options:
+    - **Is Sandbox**: Toggle if you are connecting to a Salesforce Sandbox account.
+    - **Start Date** (optional): Only data added on or after this date is replicated. Defaults to the last two years.
+    - **Filter Salesforce Object** (optional): Restrict which objects are synced using search criteria.
+    - **Lookback Window** (optional): ISO 8601 duration (e.g., `PT10M`) controlling how far back the connector re-reads data on each incremental sync. Increase this if you observe missing records due to Salesforce API eventual consistency. Default is `PT10M`.
+    - **Force Use Bulk API** (optional): When enabled, the connector ignores unsupported properties and syncs all streams via Bulk API.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="credentials" type="object" required>
+  OAuth credentials: Client ID, Client Secret, and Refresh Token.
+</ParamField>
+
+<ParamField path="is_sandbox" type="boolean">
+  Whether to connect to a Salesforce Sandbox instance. Default: `false`.
+</ParamField>
+
+<ParamField path="start_date" type="string">
+  ISO 8601 date or datetime string. Data added on or after this date is replicated. Defaults to 2 years ago.
+</ParamField>
+
+<ParamField path="stream_slice_step" type="string">
+  ISO 8601 duration for time-slicing incremental streams. Default: `P30D`.
+</ParamField>
+
+<ParamField path="lookback_window" type="string">
+  ISO 8601 duration for how far back the connector re-reads data on each incremental sync. Default: `PT10M`. Increase if records are missing due to Salesforce eventual consistency.
+</ParamField>
+
+<ParamField path="force_use_bulk_api" type="boolean">
+  When `true`, forces the Bulk API for all streams, ignoring unsupported properties. Default: `false`.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh - Overwrite | Yes |
+| Full Refresh - Append | Yes |
+| Incremental Sync - Append | Yes |
+| Incremental Sync - Append + Deduped | Yes (recommended) |
+
+<Tip>
+Use **Incremental Sync - Append + Deduped** to handle Salesforce's daily rate limits. The connector ends a sync early when the limit is hit and resumes from where it left off on the next run.
+</Tip>
+
+## Available streams
+
+The connector dynamically discovers all Salesforce Standard Objects and Custom Objects that are queryable and accessible to the authenticated user. See the full list of [Salesforce Standard Objects](https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_list.htm).
+
+### Security and permissions streams
+
+| Stream | Description |
+| --- | --- |
+| `User` | Core user accounts with profile, role, and permission data. |
+| `ActivePermSetLicenseMetric` | Permission set license usage metrics. |
+| `ActiveProfileMetric` | User profile usage metrics. |
+
+To sync these streams, the authenticated user must have **View All Users** permission.
+
+## Bulk API vs REST API
+
+The connector uses the Bulk API by default for objects with more than 2,000 records. It falls back to the REST API for:
+
+- Objects with `base64` or `complexvalue` column types.
+- Objects not supported by the Bulk API (e.g., `Attachment`, `KnowledgeArticle`, `RecentlyViewed`, and others).
+
+## Known limitations
+
+- **Daily rate limits**: The connector stops syncing when Salesforce's daily API limit is reached and picks up on the next run. Use Incremental Append+Deduped to take advantage of this behavior.
+- **Formula fields**: If a formula changes in Salesforce and no other field on the record is updated, you must reset the stream and perform a historical backfill.
+- **Eventual consistency**: Salesforce may not immediately expose newly created or updated records through its API. Use the `lookback_window` setting to re-read recent data and capture any missed records.
+- **Deleted records**: The connector supports retrieving records from the Salesforce recycle bin. Deleted records are marked with `isDeleted=true`.

@@ -1,0 +1,78 @@
+---
+title: "Docker Compose (Legacy)"
+description: "Run Airbyte with Docker Compose. This method is deprecated. New users should use abctl."
+---
+
+<Warning>
+  Docker Compose deployment is deprecated and no longer actively maintained. Airbyte recommends using [abctl](/deploy/abctl) for local and single-VM deployments. New installations should not use Docker Compose.
+</Warning>
+
+## Migration to abctl
+
+If you are currently running Airbyte with Docker Compose, migrate to abctl to continue receiving updates and support.
+
+abctl provides the same local deployment experience with several improvements:
+- Automatic Kubernetes cluster management via kind
+- Built-in ingress with NGINX
+- Simpler credential management with `abctl local credentials`
+- A single install command with no manual `docker-compose.yaml` management
+
+See the [abctl deployment guide](/deploy/abctl) to get started.
+
+## Running with Docker Compose (deprecated)
+
+If you must use Docker Compose for an existing deployment, the steps below describe how it works. Do not start a new deployment with this method.
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- At least 4 GB of RAM allocated to Docker
+
+### Steps
+
+<Steps>
+  <Step title="Clone the Airbyte repository">
+    ```bash
+    git clone --depth=1 https://github.com/airbytehq/airbyte.git
+    cd airbyte
+    ```
+  </Step>
+
+  <Step title="Start Airbyte">
+    ```bash
+    docker compose up
+    ```
+
+    Wait for all containers to start. The first run downloads all required images, which may take several minutes.
+  </Step>
+
+  <Step title="Open the UI">
+    Navigate to `http://localhost:8000` in your browser.
+
+    Default credentials:
+    - Email: `airbyte`
+    - Password: `password`
+  </Step>
+</Steps>
+
+### Stopping Airbyte
+
+To stop Airbyte without removing data:
+
+```bash
+docker compose down
+```
+
+To stop Airbyte and remove all data:
+
+```bash
+docker compose down -v
+```
+
+<Warning>
+  `docker compose down -v` permanently deletes all Airbyte data including connections, sources, destinations, and sync history.
+</Warning>
+
+## What to do next
+
+Migrate to abctl. The [abctl guide](/deploy/abctl) covers installation, running `abctl local install`, accessing the UI, and managing your deployment.

@@ -1,0 +1,162 @@
+---
+title: "HubSpot Source"
+description: "Sync CRM contacts, deals, companies, marketing emails, engagements, and more from HubSpot."
+---
+
+The HubSpot source connector syncs data from your HubSpot account including CRM objects, marketing data, and engagement records. It supports both incremental and full refresh sync modes.
+
+## Prerequisites
+
+- A HubSpot account.
+- **Airbyte Cloud**: OAuth (recommended) or a Private App Access Token.
+- **Airbyte Open Source**: A Private App Access Token (recommended) or OAuth credentials.
+
+## Setup guide
+
+<Steps>
+  <Step title="Set up authentication">
+    <Tabs>
+      <Tab title="OAuth (Airbyte Cloud, recommended)">
+        OAuth is the recommended authentication method for Airbyte Cloud. You will authorize Airbyte in the setup flow.
+
+        <Note>
+        If you encounter an `An invalid scope name was provided` error during OAuth, close the popup window and retry authentication.
+        </Note>
+      </Tab>
+      <Tab title="Private App (Access Token)">
+        1. In HubSpot, go to **Settings > Integrations > Private Apps** and create a new Private App.
+        2. Configure the required scopes for the streams you want to sync. See [Scopes by stream](#scopes-by-stream).
+        3. Copy the generated Access Token.
+      </Tab>
+      <Tab title="OAuth (Open Source)">
+        Follow [HubSpot's OAuth documentation](https://developers.hubspot.com/docs/api/working-with-oauth) to obtain:
+        - Client ID
+        - Client Secret
+        - Refresh Token
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Set up the HubSpot connector in Airbyte">
+    In the Airbyte UI, go to **Sources**, search for **HubSpot**, and create a new source.
+
+    1. Select your authentication method and provide credentials.
+    2. (Optional) Set a **Start date** in `yyyy-mm-ddThh:mm:ssZ` format. Data added on or after this date is replicated. If not set, defaults to `2006-06-01T00:00:00Z`.
+    3. (Optional) Set a **Lookback window** (in minutes) to re-fetch data before the previous sync state. This helps capture missing records due to HubSpot API irregularities.
+    4. Click **Set up source**.
+  </Step>
+</Steps>
+
+## Configuration reference
+
+<ParamField path="credentials" type="object" required>
+  Authentication method: OAuth or Private App (Access Token).
+</ParamField>
+
+<ParamField path="start_date" type="string">
+  Datetime in `yyyy-mm-ddThh:mm:ssZ` format. Data from before this date is not replicated.
+</ParamField>
+
+<ParamField path="lookback_window" type="integer">
+  Number of minutes before the previous sync state to re-fetch data. Helps capture records missed due to API irregularities.
+</ParamField>
+
+<ParamField path="enable_experimental_streams" type="boolean">
+  Enable Web Analytics experimental streams. These use a HubSpot API currently in beta and may be unstable.
+</ParamField>
+
+## Supported sync modes
+
+| Sync mode | Supported |
+| --- | --- |
+| Full Refresh | Yes |
+| Incremental | Yes |
+
+## Available streams
+
+| Stream | Sync type |
+| --- | --- |
+| `campaigns` | Client-side Incremental |
+| `companies` | Incremental |
+| `contact_lists` | Incremental |
+| `contacts` | Incremental |
+| `deal_pipelines` | Client-side Incremental |
+| `deals` | Incremental |
+| `deals_archived` | Incremental |
+| `email_events` | Incremental |
+| `email_subscriptions` | Full Refresh |
+| `engagements` | Incremental |
+| `engagements_calls` | Incremental |
+| `engagements_emails` | Incremental |
+| `engagements_meetings` | Incremental |
+| `engagements_notes` | Incremental |
+| `engagements_tasks` | Incremental |
+| `forms` | Client-side Incremental |
+| `form_submissions` | Client-side Incremental |
+| `goals` | Incremental |
+| `leads` | Incremental |
+| `line_items` | Incremental |
+| `marketing_emails` | Incremental |
+| `owners` | Client-side Incremental |
+| `owners_archived` | Client-side Incremental |
+| `products` | Incremental |
+| `contacts_property_history` | Client-side Incremental |
+| `companies_property_history` | Client-side Incremental |
+| `deals_property_history` | Client-side Incremental |
+| `subscription_changes` | Incremental |
+| `tickets` | Incremental |
+| `ticket_pipelines` | Client-side Incremental |
+| `workflows` | Client-side Incremental |
+| `account_details` | Full Refresh |
+
+Custom CRM Objects and Custom Web Analytics streams are also available and appear automatically based on your HubSpot account configuration.
+
+## Scopes by stream (Private App only)
+
+<AccordionGroup>
+  <Accordion title="View required scopes">
+
+| Stream | Required scope |
+| --- | --- |
+| `campaigns` | `content` |
+| `companies` | `crm.objects.companies.read`, `crm.schemas.companies.read` |
+| `contact_lists` | `crm.lists.read` |
+| `contacts` | `crm.objects.contacts.read` |
+| Custom CRM Objects | `crm.objects.custom.read` |
+| `deal_pipelines` | `crm.objects.contacts.read` |
+| `deals` | `crm.objects.deals.read`, `crm.schemas.deals.read` |
+| `email_events` | `content` |
+| `email_subscriptions` | `content` |
+| `engagements` | `crm.objects.companies.read`, `crm.objects.contacts.read`, `crm.objects.deals.read`, `tickets`, `e-commerce` |
+| `engagements_emails` | `sales-email-read` |
+| `forms` | `forms` |
+| `form_submissions` | `forms` |
+| `goals` | `crm.objects.goals.read` |
+| `leads` | `crm.objects.leads.read`, `crm.schemas.leads.read` |
+| `line_items` | `e-commerce` |
+| `owners` | `crm.objects.owners.read` |
+| `products` | `e-commerce` |
+| `property_history` | `crm.objects.contacts.read` |
+| `subscription_changes` | `content` |
+| `tickets` | `tickets` |
+| `account_details` | `oauth` |
+| `workflows` | `automation` |
+
+  </Accordion>
+</AccordionGroup>
+
+## Rate limits
+
+| Product tier | Burst limit | Daily limit |
+| --- | --- | --- |
+| Free & Starter | 100/10 seconds | 250,000 |
+| Professional & Enterprise | 150/10 seconds | 500,000 |
+| API add-on (any tier) | 200/10 seconds | 1,000,000 |
+
+## Known limitations
+
+- **Custom properties**: Syncs take longer when you have custom properties in HubSpot.
+- **Deals archived stream**: Archived deals stored in HubSpot's recycle bin are only retained for 90 days.
+- **Property history streams**: `CALCULATED` type fields always have a cursor timestamp matching the latest sync time, causing more records to be included than were actually changed.
+- **Engagements stream**: Uses the `EngagementsRecent` API if the last sync was within 30 days and fewer than 10,000 records are pending; otherwise uses `EngagementsAll`, which can be slow for large volumes.
+- **Custom CRM Objects**: If your connection was created before April 15, 2023, re-authenticate to grant `crm.objects.custom.read` scope and refresh the schema.

@@ -1,0 +1,237 @@
+---
+title: "Airbyte Protocol"
+description: "The Airbyte Protocol defines the standard interfaces that sources and destinations must implement to participate in Airbyte data pipelines."
+---
+
+The Airbyte Protocol describes a series of standard components and all interactions between them in order to declare an ELT pipeline. All message passing across components is done via serialized JSON for inter-process communication.
+
+## Key concepts
+
+There are two major components in the Airbyte Protocol: **Source** and **Destination**. These are collectively referred to as **Actors**.
+
+- A **Source** is an application that extracts data from an underlying data store (a database, API, or any system that produces data).
+- A **Destination** is an application that loads data into a data store.
+
+The key primitives the protocol uses to describe data:
+
+| Primitive | Description |
+|-----------|-------------|
+| **Stream** | Describes the schema of a resource and metadata about how it can be synced. Analogous to a table or API endpoint. |
+| **Field** | A "column" in a Stream — a JSON field in an object. |
+| **Catalog** | A list of Streams that describes the data available from a Source. |
+| **Configured Catalog** | A list of Configured Streams that describes how the data should be replicated. |
+
+## Actor interface
+
+### Common interface
+
+Both Sources and Destinations share these two methods:
+
+```
+spec() -> ConnectorSpecification
+check(Config) -> AirbyteConnectionStatus
+```
+
+**`spec`** allows an actor to broadcast information about itself and declare what configuration it requires (via JSON Schema).
+
+**`check`** validates that, given a configuration, the actor can connect and access all required resources. If `check` succeeds, subsequent sync methods are expected to succeed as well.
+
+### Source interface
+
+```
+spec() -> ConnectorSpecification
+check(Config) -> AirbyteConnectionStatus
+discover(Config) -> AirbyteCatalog
+read(Config, ConfiguredAirbyteCatalog, State) -> Stream<AirbyteRecordMessage | AirbyteStateMessage>
+```
+
+**`discover`** detects and describes the structure of data in the data store. For example, given a Postgres source, `discover` returns the list of available tables as streams.
+
+**`read`** extracts data from the underlying data store and emits it as `AirbyteRecordMessage`s, along with `AirbyteStateMessage`s to enable checkpointing.
+
+### Destination interface
+
+```
+spec() -> ConnectorSpecification
+check(Config) -> AirbyteConnectionStatus
+write(Config, AirbyteCatalog, Stream<AirbyteMessage>(stdin)) -> Stream<AirbyteStateMessage>
+```
+
+**`write`** receives records on stdin and loads them into the underlying data store. It outputs `AirbyteStateMessage`s to confirm which records have been committed.
+
+## AirbyteMessage
+
+All output from actor methods is wrapped in an `AirbyteMessage` envelope:
+
+```yaml
+AirbyteMessage:
+  type: object
+  required:
+    - type
+  properties:
+    type:
+      type: string
+      enum:
+        - RECORD
+        - STATE
+        - LOG
+        - SPEC
+        - CONNECTION_STATUS
+        - CATALOG
+        - TRACE
+    log:           # AirbyteLogMessage
+    spec:          # ConnectorSpecification
+    connectionStatus: # AirbyteConnectionStatus
+    catalog:       # AirbyteCatalog
+    record:        # AirbyteRecordMessage
+    state:         # AirbyteStateMessage
+    trace:         # AirbyteTraceMessage
+```
+
+<Note>
+  Every method in the protocol can also emit `AirbyteLogMessage`s and `AirbyteTraceMessage`s. Actors close `STDOUT` to signal completion. Each message must be on its own line — JSON objects cannot span multiple lines.
+</Note>
+
+## Catalog
+
+An `AirbyteCatalog` is produced by the `discover` action of a source. It contains a list of `AirbyteStream`s, each describing an available data resource.
+
+### Example: relational database
+
+For a `users` table with `name` and `age` columns:
+
+```json
+{
+  "streams": [
+    {
+      "name": "users",
+      "json_schema": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "age":  { "type": "number" }
+        }
+      }
+    }
+  ]
+}
+```
+
+### Example: REST API with nested objects
+
+For an API with `customers` and `products` endpoints:
+
+```json
+{
+  "streams": [
+    {
+      "name": "customers",
+      "json_schema": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" }
+        }
+      }
+    },
+    {
+      "name": "products",
+      "json_schema": {
+        "type": "object",
+        "required": ["name", "features"],
+        "properties": {
+          "name": { "type": "string" },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "productId"],
+              "properties": {
+                "name":      { "type": "string" },
+                "productId": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+## ConfiguredAirbyteStream
+
+A `ConfiguredAirbyteCatalog` is built on top of the catalog returned by `discover`. It specifies how each stream should be replicated:
+
+```yaml
+ConfiguredAirbyteStream:
+  required:
+    - stream
+    - sync_mode
+    - destination_sync_mode
+  properties:
+    stream:                 # the AirbyteStream
+    sync_mode:              # full_refresh | incremental
+    cursor_field:           # path to the cursor field (required for incremental)
+    destination_sync_mode:  # append | overwrite | append_dedup
+    primary_key:            # required for append_dedup
+```
+
+### Sync modes
+
+<Tabs>
+  <Tab title="Source sync modes">
+    | Mode | Description |
+    |------|-------------|
+    | `full_refresh` | Resend all data on every sync. Use only for small datasets or snapshots. |
+    | `incremental` | Send only records that are new or updated since the last sync, using a cursor field. |
+  </Tab>
+  <Tab title="Destination sync modes">
+    | Mode | Description |
+    |------|-------------|
+    | `append` | Add new data to the end of existing data. |
+    | `overwrite` | Replace all existing data with data from this sync. |
+    | `append_dedup` | Add new data and deduplicate on primary key (SCD Type 1 & 2). Most common mode. |
+  </Tab>
+</Tabs>
+
+## State and checkpointing
+
+Sources emit `AirbyteStateMessage`s to checkpoint replication progress. If a sync fails before completion, the next sync starts from the last committed checkpoint rather than from the beginning.
+
+There are three state types:
+
+| Type | Description |
+|------|-------------|
+| `STREAM` | Preferred. State is isolated per stream. Enables per-stream resets and parallelization. |
+| `GLOBAL` | Used when state is shared across streams (e.g. CDC WAL position). |
+| `LEGACY` | Deprecated. Fully opaque black-box state for backwards compatibility. |
+
+<Warning>
+  A state message should only be passed back to a Source in the next run if it was both emitted by the Source **and** confirmed by the Destination. A record emitted by the Source but not yet written to the Destination must not be skipped.
+</Warning>
+
+## Schema mismatch handling
+
+The protocol is designed to be resilient to catalog/data-store mismatches. Syncs never fail due to schema drift:
+
+| Scenario | Outcome |
+|----------|---------|
+| Stream in catalog but not in data store | Other streams sync normally. |
+| Stream in data store but not in catalog | Stream is not synced. |
+| Field in catalog but not in data store | Field is simply absent from output. |
+| Field in data store but not in catalog | Field is ignored. |
+
+## Protocol changelog
+
+| Version | Date | Summary |
+|---------|------|---------|
+| `v0.5.2` | 2023-12-26 | Remove unused V1. |
+| `v0.5.0` | 2023-11-13 | `AirbyteStateStatsMessage` added. |
+| `v0.4.2` | 2023-04-12 | `AirbyteAnalyticsTraceMessage` added. |
+| `v0.3.3` | 2023-04-12 | `AirbyteStreamStatusMessage` added. |
+| `v0.3.2` | 2022-10-28 | `AirbyteEstimateTraceMessage` added. |
+| `v0.2.0` | 2022-06-10 | `STREAM` and `GLOBAL` STATE messages added. |
+| `v0.1.0` | 2022-05-03 | `AirbyteTraceMessage` added. |
+| `v0.0.0` | 2020-11-18 | Initial version. |
